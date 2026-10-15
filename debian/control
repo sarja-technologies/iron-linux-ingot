@@ -82,7 +82,8 @@ Package: iron-agent-desktops
 Architecture: all
 Depends: python3, python3-gi, python3-pil, systemd-container, polkitd, dbus,
          debootstrap, e2fsprogs, util-linux, ${misc:Depends}
-Recommends: passt, qemu-system-x86 [amd64] | qemu-system-arm, qemu-utils, virt-viewer
+Recommends: passt, qemu-utils, virt-viewer
+Suggests: qemu-system-x86 | qemu-system-arm
 Description: Iron Agent Desktops - isolated desktops for AI agents
  Runs AI agents (Claude Code, Codex CLI, AgentDock, or a plain desktop) in
  separate, isolated desktops that you can watch and instruct while you keep

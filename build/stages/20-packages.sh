@@ -52,7 +52,8 @@ stage_packages() {
         | xargs -0 cp --parents -a -t "${builder}/src/ingot")
 
     # Unique, increasing version per build so apt upgrades existing systems/rootfs.
-    sed -i "1s/(\([^)]*\))/(\1+b$(date -u +%Y%m%d%H%M%S))/" "${builder}/src/ingot/debian/changelog"
+    # ("+bN" must not be used: dpkg treats it as a binNMU and strips it from ${source:Version}.)
+    sed -i "1s/(\([^)]*\))/(\1+t$(date -u +%Y%m%d%H%M%S))/" "${builder}/src/ingot/debian/changelog"
     head -n 1 "${builder}/src/ingot/debian/changelog" >&2
 
     chroot_mount
@@ -65,14 +66,23 @@ stage_packages() {
     chroot_umount
     ROOTFS="${saved_rootfs}"; CACHE="${saved_cache}"; ARCH="${saved_arch}"; MIRROR="${saved_mirror}"
 
+    # Optional: Gnotch (independent project) from a pinned commit. Never fatal.
+    if [[ -n "${INGOT_GNOTCH_SRC:-}" ]]; then
+        "${INGOT_ROOT}/packaging/gnotch/build-gnotch-deb.sh" "${INGOT_GNOTCH_SRC}" "${builder}/src" \
+            || warn "Gnotch package skipped (see output above); the image builds without it"
+    fi
+
     publish_repo "${builder}/src"
-    echo "${src_hash}" > "${repo}/.src-hash"
+    echo "${src_hash}" > "$(REPO_DIR)/.src-hash"
 }
 
 publish_repo() {
-    local debdir="$1" repo; repo="$(REPO_DIR)"
+    # Built beside the live repo and swapped in atomically, so a build of another
+    # architecture that has the old repo bind-mounted is not disturbed.
+    local debdir="$1" final; final="$(REPO_DIR)"
+    local repo="${final}.new"
     ensure_signing_key
-    log "publishing local APT repo ${repo}"
+    log "publishing local APT repo ${final}"
     rm -rf --one-file-system "${repo}"
     mkdir -p "${repo}/pool" "${repo}/dists/${INGOT_CODENAME}/main/binary-all"
     cp "${debdir}"/*.deb "${repo}/pool/"
@@ -92,5 +102,12 @@ publish_repo() {
             -o "dists/${INGOT_CODENAME}/InRelease" "dists/${INGOT_CODENAME}/Release"
     )
     cp "$(KEY_DIR)/archive.pub.gpg" "${repo}/iron-archive-dev.gpg"
+    local old
+    for old in "${final}".old.*; do
+        [[ -d "${old}" ]] && ! findmnt -rn -S "${old}" >/dev/null 2>&1 && rm -rf --one-file-system "${old}"
+    done
+    [[ -d "${final}" ]] && mv "${final}" "${final}.old.$(date +%s)"
+    mv "${repo}" "${final}"
+    repo="${final}"
     find "${repo}/pool" -name '*.deb' -printf '    %f\n' | sort >&2
 }

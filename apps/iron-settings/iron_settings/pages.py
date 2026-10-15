@@ -125,6 +125,22 @@ def appearance_page():
     g.add(more)
     page.add(g)
 
+    if os.path.isdir("/usr/share/gnome-shell/extensions/gnotch@gnotch.dev"):
+        shell = schema_settings("org.gnome.shell")
+        g = Adw.PreferencesGroup(title="Gnotch",
+                                 description="An expandable notch in the top bar with addons such as Voice Notes "
+                                             "and Agent Workspace. Takes effect after logging out and in.")
+        row = Adw.SwitchRow(title="Show Gnotch")
+        uuid = "gnotch@gnotch.dev"
+        row.set_active(uuid in shell.get_strv("enabled-extensions"))
+
+        def toggle(r, _p):
+            exts = [e for e in shell.get_strv("enabled-extensions") if e != uuid]
+            shell.set_strv("enabled-extensions", exts + ([uuid] if r.get_active() else []))
+        row.connect("notify::active", toggle)
+        g.add(row)
+        page.add(g)
+
     dock = schema_settings("org.gnome.shell.extensions.dash-to-dock")
     g = Adw.PreferencesGroup(title="Taskbar", description="The Ingot dock")
     g.add(combo_row("Position", None, dock, "dock-position",

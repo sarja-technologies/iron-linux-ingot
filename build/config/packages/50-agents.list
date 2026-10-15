@@ -1,0 +1,5 @@
+# Agent Desktops backends (full edition). The VM backend needs the native QEMU.
+passt {full}
+qemu-utils {full}
+qemu-system-x86 [amd64] {full}
+qemu-system-arm [arm64] {full}

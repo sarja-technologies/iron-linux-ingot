@@ -40,6 +40,11 @@ EOF
     log "installing ${KERNEL_PKG}, ${meta} and ${#pkgs[@]} image packages"
     apt_chroot install "${KERNEL_PKG}" "${meta}" "${pkgs[@]}"
 
+    # Optional components present in the repo (e.g. Gnotch): installed, not enabled.
+    if in_chroot apt-cache show gnotch >/dev/null 2>&1; then
+        apt_chroot install gnotch || warn "gnotch failed to install; continuing without it"
+    fi
+
     log "purging unwanted defaults"
     local present=()
     for p in ${INGOT_PURGE}; do
