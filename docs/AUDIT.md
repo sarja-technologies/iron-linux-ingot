@@ -2,11 +2,24 @@
 
 ## Ingot working directory
 
-`~/Documents/Iron-Linux/iron-linux-ingot/` was **empty**: no files, no Git
-repository, no remote. The brief names `iron-linux-iron/`, which did not exist
-when work started; this session was opened in `iron-linux-ingot/`, so that is
-where the repository lives. (At 19:05 an empty `iron-linux-iron/` appeared
-alongside it — see the final report: the repository can be moved there.)
+Work started in `~/Documents/Iron-Linux/iron-linux-ingot/` (empty at the time:
+no files, no Git repository, no remote), because the canonical
+`iron-linux-iron/` named in the brief did not exist yet.
+
+**2026-10-16 — moved to the canonical `~/Documents/Iron-Linux/iron-linux-iron/`**
+(owner's decision). The canonical directory turned out to contain only a `.git`
+*file*: a Git worktree of the Nugget repository on an unborn branch
+`ingot/main` (no commits, no files). The move was a same-filesystem rename
+(ownership, the root-owned `.work/` and `out/` preserved untouched): the
+gitlink was kept at `.git/ingot-migration/iron-linux-iron.nugget-worktree.gitlink`,
+the empty directory removed, the repository renamed, and a before/after
+inventory of all 497 368 entries (type, owner, mode, size) compared equal.
+Nugget's own `.git/worktrees/iron-linux-iron` registration was **not** changed;
+because the path exists again, `git worktree prune` will not clear it, and
+**`git worktree remove` must not be used — it would delete this repository**.
+The owner can drop the stale entry by deleting only the metadata directory
+`~/Documents/Iron-Linux/iron-linux-nugget/.git/worktrees/iron-linux-iron/`
+(the branch `ingot/main` was never born, so no commits are involved).
 
 No GitHub repository named for Ingot exists under `crossainthero-lab`.
 
