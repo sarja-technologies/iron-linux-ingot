@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+if [ "$1" = purge ]; then
+    # Agent disks can be large and belong to users; keep them unless purged.
+    rm -rf /var/lib/iron/agents /var/lib/iron/agent-images
+    rmdir /var/lib/iron 2>/dev/null || true
+fi
+#DEBHELPER#

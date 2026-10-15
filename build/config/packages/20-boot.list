@@ -1,0 +1,18 @@
+# Bootloader and storage tooling needed by the installer and recovery.
+shim-signed
+grub-efi-amd64-signed [amd64]
+grub-efi-amd64-bin [amd64]
+grub-pc-bin [amd64]
+grub-efi-arm64-signed [arm64]
+grub-efi-arm64-bin [arm64]
+efibootmgr
+mokutil
+os-prober
+cryptsetup
+cryptsetup-initramfs
+lvm2
+btrfs-progs
+dosfstools
+e2fsprogs
+ntfs-3g {full}
+friendly-recovery

@@ -1,0 +1,208 @@
+#!/usr/bin/python3
+"""iron-hwprofile - Iron Linux hardware detection and adaptive defaults.
+
+  iron-hwprofile detect   print the detected hardware as JSON
+  iron-hwprofile apply    detect, write /run/iron/hardware.json and apply
+                          adaptive system defaults (dconf system db 'iron-hw')
+
+Everything is read from sysfs/procfs under --root (default /) so the logic is
+testable against fake trees. Nothing here changes drivers or kernel settings;
+it only chooses desktop defaults that users can still override.
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+PCI_VENDORS = {
+    "0x10de": "nvidia", "0x1002": "amd", "0x8086": "intel", "0x1af4": "virtio",
+    "0x1234": "qemu-std", "0x15ad": "vmware", "0x1b36": "qemu-qxl", "0x80ee": "virtualbox",
+    "0x1414": "hyperv",
+}
+# DRM drivers that mean "no real 3D acceleration" for the compositor.
+SOFTWARE_DRM = {"bochs-drm", "bochs", "cirrus", "cirrus-qemu", "simpledrm", "efifb", "vboxvideo", "hyperv_drm", "qxl"}
+ARM_GPU_DRIVERS = {"vc4": "broadcom", "v3d": "broadcom", "panfrost": "arm-mali", "panthor": "arm-mali",
+                   "lima": "arm-mali", "msm": "qualcomm-adreno", "asahi": "apple", "etnaviv": "vivante"}
+LAPTOP_CHASSIS = {"8", "9", "10", "11", "14", "30", "31", "32"}  # SMBIOS chassis types
+
+
+def read(root, path, default=""):
+    try:
+        with open(os.path.join(root, path.lstrip("/")), encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+
+def listdir(root, path):
+    try:
+        return sorted(os.listdir(os.path.join(root, path.lstrip("/"))))
+    except OSError:
+        return []
+
+
+def detect_cpu(root):
+    info = read(root, "/proc/cpuinfo")
+    vendor = "unknown"
+    m = re.search(r"^vendor_id\s*:\s*(\S+)", info, re.M)
+    if m:
+        vendor = {"GenuineIntel": "intel", "AuthenticAMD": "amd"}.get(m.group(1), m.group(1).lower())
+    else:
+        m = re.search(r"^CPU implementer\s*:\s*(0x[0-9a-f]+)", info, re.M | re.I)
+        if m:
+            vendor = {"0x41": "arm", "0x51": "qualcomm", "0x61": "apple", "0x48": "hisilicon",
+                      "0x4e": "nvidia", "0xc0": "ampere"}.get(m.group(1).lower(), "arm-" + m.group(1))
+    model = ""
+    for key in ("model name", "Model", "Hardware"):
+        m = re.search(rf"^{key}\s*:\s*(.+)$", info, re.M)
+        if m:
+            model = m.group(1).strip()
+            break
+    threads = len(re.findall(r"^processor\s*:", info, re.M)) or os.cpu_count() or 1
+    online = read(root, "/sys/devices/system/cpu/online")
+    if online:
+        n = 0
+        for part in online.split(","):
+            a, _, b = part.partition("-")
+            n += (int(b) - int(a) + 1) if b else 1
+        threads = n
+    return {"vendor": vendor, "model": model, "threads": threads}
+
+
+def detect_memory(root):
+    m = re.search(r"^MemTotal:\s*(\d+)\s*kB", read(root, "/proc/meminfo"), re.M)
+    return {"total_mib": int(m.group(1)) // 1024 if m else 0}
+
+
+def detect_gpus(root):
+    gpus = []
+    for card in listdir(root, "/sys/class/drm"):
+        if not re.fullmatch(r"card\d+", card):
+            continue
+        dev = f"/sys/class/drm/{card}/device"
+        driver = os.path.basename(os.path.realpath(os.path.join(root, dev.lstrip("/"), "driver"))) \
+            if os.path.exists(os.path.join(root, dev.lstrip("/"), "driver")) else ""
+        vendor_id = read(root, f"{dev}/vendor")
+        vendor = PCI_VENDORS.get(vendor_id, ARM_GPU_DRIVERS.get(driver, vendor_id or "platform"))
+        boot_vga = read(root, f"{dev}/boot_vga") == "1"
+        gpus.append({
+            "card": card, "driver": driver, "vendor": vendor,
+            "pci_id": f"{vendor_id}:{read(root, f'{dev}/device')}" if vendor_id else "",
+            "boot_vga": boot_vga,
+            "software_only": driver in SOFTWARE_DRM,
+        })
+    render_nodes = [n for n in listdir(root, "/dev/dri") if n.startswith("renderD")]
+    return gpus, render_nodes
+
+
+def detect_virt(root):
+    if root != "/":
+        return read(root, "/run/iron-test/virt", "none")
+    try:
+        out = subprocess.run(["systemd-detect-virt"], capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or "none"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def detect(root="/"):
+    cpu = detect_cpu(root)
+    mem = detect_memory(root)
+    gpus, render_nodes = detect_gpus(root)
+    chassis = read(root, "/sys/class/dmi/id/chassis_type")
+    batteries = [b for b in listdir(root, "/sys/class/power_supply") if b.startswith("BAT")]
+    arch = os.uname().machine if root == "/" else read(root, "/run/iron-test/arch", "x86_64")
+    accel = [g for g in gpus if not g["software_only"]]
+    hw = {
+        "arch": arch,
+        "cpu": cpu,
+        "memory": mem,
+        "gpus": gpus,
+        "render_nodes": render_nodes,
+        "gpu_acceleration": bool(accel) and bool(render_nodes),
+        "nvidia": any(g["vendor"] == "nvidia" for g in gpus),
+        "virtualization": detect_virt(root),
+        "laptop": chassis in LAPTOP_CHASSIS or bool(batteries),
+        "kvm": os.path.exists(os.path.join(root, "dev/kvm")),
+        "cgroup_v2": os.path.exists(os.path.join(root, "sys/fs/cgroup/cgroup.controllers")),
+        "raspberry_pi": "raspberry pi" in read(root, "/proc/device-tree/model").lower(),
+    }
+    hw["tier"] = tier(hw)
+    return hw
+
+
+def tier(hw):
+    ram = hw["memory"]["total_mib"]
+    threads = hw["cpu"]["threads"]
+    if ram < 6 * 1024 or threads <= 2:
+        return "low"
+    if ram >= 16 * 1024 and threads >= 8:
+        return "high"
+    return "standard"
+
+
+def dconf_defaults(hw):
+    """Return the dconf keyfile text for adaptive defaults (may be empty)."""
+    lines = []
+    reasons = []
+    if not hw["gpu_acceleration"]:
+        reasons.append("software rendering")
+    if hw["tier"] == "low":
+        reasons.append("low-memory tier")
+    if reasons:
+        lines += ["# " + ", ".join(reasons),
+                  "[org/gnome/desktop/interface]", "enable-animations=false", ""]
+    if hw["tier"] == "low":
+        # Indexing is the biggest idle cost on small machines; keep search for apps/settings.
+        lines += ["[org/freedesktop/tracker/miner/files]",
+                  "index-recursive-directories=@as []", "index-single-directories=@as []", ""]
+    return "\n".join(lines)
+
+
+def apply(hw, run_dir="/run/iron", dconf_dir="/etc/dconf/db/iron-hw.d", compile_db=True):
+    os.makedirs(run_dir, exist_ok=True)
+    tmp = os.path.join(run_dir, ".hardware.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(hw, f, indent=2)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, os.path.join(run_dir, "hardware.json"))
+
+    os.makedirs(dconf_dir, exist_ok=True)
+    path = os.path.join(dconf_dir, "00-hwprofile")
+    text = dconf_defaults(hw)
+    old = ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            old = f.read()
+    except OSError:
+        pass
+    if text != old:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        if not compile_db:
+            return
+        try:
+            subprocess.run(["dconf", "update"], check=False, timeout=30)
+        except OSError:
+            print("iron-hwprofile: dconf not available; defaults written but not compiled", file=sys.stderr)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="iron-hwprofile")
+    ap.add_argument("command", choices=["detect", "apply"])
+    ap.add_argument("--root", default="/")
+    args = ap.parse_args(argv)
+    hw = detect(args.root)
+    if args.command == "detect":
+        print(json.dumps(hw, indent=2))
+    else:
+        apply(hw)
+        print(f"iron-hwprofile: tier={hw['tier']} gpu_acceleration={hw['gpu_acceleration']} "
+              f"virt={hw['virtualization']} laptop={hw['laptop']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Iron Settings
+GenericName=System Settings
+Comment=Tiling, Agent Desktops, appearance, drivers and updates for Iron Linux
+Exec=iron-settings
+Icon=iron-logo
+Terminal=false
+Type=Application
+Categories=GNOME;GTK;Settings;DesktopSettings;
+Keywords=tiling;agent;agents;desktops;drivers;nvidia;updates;wallpaper;iron;
+StartupNotify=true
+DBusActivatable=false

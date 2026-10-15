@@ -1,0 +1,13 @@
+#!/bin/sh
+# friendly-recovery option: stop and disable Agent Desktops.
+if [ "$1" = "test" ]; then
+    echo "Iron: disable Agent Desktops"
+    exit 0
+fi
+mkdir -p /etc/iron
+if [ -f /etc/iron/agent-desktops.conf ]; then
+    sed -i 's/^\s*enabled\s*=.*/enabled = false/' /etc/iron/agent-desktops.conf
+else
+    printf '[agent-desktops]\nenabled = false\n' > /etc/iron/agent-desktops.conf
+fi
+echo "Agent Desktops disabled. Existing agent data is kept in /var/lib/iron/agents."

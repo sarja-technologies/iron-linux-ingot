@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+"""iron-elevate COMMAND... - run a command as root inside this Agent Desktop,
+after the human owner approves it on the host.
+
+Example: iron-elevate apt-get install -y ripgrep
+"""
+import json
+import os
+import secrets
+import shlex
+import socket
+import sys
+import time
+
+CONTROL = "/run/iron-agent/control"
+
+
+def main(argv):
+    if not argv:
+        print(__doc__.strip())
+        return 2
+    rid = secrets.token_hex(8)
+    req = {"kind": "elevate", "summary": f"Run as root: {shlex.join(argv)[:300]}",
+           "detail": shlex.join(argv), "argv": argv}
+    path = os.path.join(CONTROL, "requests", f"{rid}.json")
+    with open(path + ".tmp", "w") as f:
+        json.dump(req, f)
+    os.chmod(path + ".tmp", 0o644)
+    os.rename(path + ".tmp", path)
+    print("iron-elevate: waiting for the owner's approval…", file=sys.stderr)
+    resp = os.path.join(CONTROL, "responses", f"{rid}.json")
+    deadline = time.time() + 900
+    while not os.path.exists(resp):
+        if time.time() > deadline:
+            print("iron-elevate: no decision (timed out)", file=sys.stderr)
+            return 2
+        time.sleep(0.5)
+    with open(resp) as f:
+        if not json.load(f).get("allow"):
+            print("iron-elevate: denied by the owner", file=sys.stderr)
+            return 1
+    s = socket.socket(socket.AF_UNIX)
+    s.connect("/run/iron-agent-elevate.sock")
+    s.sendall(rid.encode() + b"\n")
+    while True:
+        chunk = s.recv(65536)
+        if not chunk:
+            break
+        sys.stdout.write(chunk.decode(errors="replace"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

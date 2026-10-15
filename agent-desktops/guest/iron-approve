@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+"""iron-approve - ask the human owner of this Agent Desktop for approval.
+
+  iron-approve "summary" [--detail TEXT] [--kind tool|network|message] [--timeout SEC]
+      exit 0 = allowed, 1 = denied, 2 = timed out / unavailable
+
+  iron-approve --claude-hook
+      Claude Code PreToolUse hook: reads the hook JSON on stdin, asks the owner,
+      and prints a hook decision (allow/deny) on stdout.
+
+Requests travel through /run/iron-agent/control (shared with the host daemon).
+Only the host can write the response, so an agent cannot approve itself.
+"""
+import argparse
+import json
+import os
+import secrets
+import sys
+import time
+
+CONTROL = os.environ.get("IRON_AGENT_CONTROL", "/run/iron-agent/control")
+
+
+def ask(kind, summary, detail="", timeout=900, extra=None):
+    rid = secrets.token_hex(8)
+    req_dir, resp_dir = os.path.join(CONTROL, "requests"), os.path.join(CONTROL, "responses")
+    if not os.path.isdir(req_dir):
+        print("iron-approve: not running inside an Iron Agent Desktop", file=sys.stderr)
+        return None
+    req = {"kind": kind, "summary": summary[:500], "detail": detail[:4000], **(extra or {})}
+    tmp = os.path.join(req_dir, f".{rid}.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(req, f)
+    os.chmod(tmp, 0o644)
+    os.rename(tmp, os.path.join(req_dir, f"{rid}.json"))
+    resp = os.path.join(resp_dir, f"{rid}.json")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            st = os.stat(resp)
+            # Responses are written by the host (container root); never trust others.
+            if st.st_uid != os.stat(resp_dir).st_uid:
+                return False
+            with open(resp, encoding="utf-8") as f:
+                return bool(json.load(f).get("allow")), rid
+        except (OSError, ValueError):
+            time.sleep(0.5)
+    return None
+
+
+def claude_hook():
+    try:
+        hook = json.load(sys.stdin)
+    except ValueError:
+        hook = {}
+    tool = hook.get("tool_name", "tool")
+    tin = hook.get("tool_input", {})
+    detail = tin.get("command") or tin.get("file_path") or json.dumps(tin)[:4000]
+    res = ask("tool", f"Claude Code wants to use {tool}", str(detail))
+    allowed = bool(res and res[0])
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow" if allowed else "deny",
+        "permissionDecisionReason": "Approved by the desktop owner" if allowed
+        else "Denied (or not answered) by the desktop owner via Iron Agent Desktops"}}))
+    return 0
+
+
+def main():
+    if "--claude-hook" in sys.argv[1:]:
+        return claude_hook()
+    ap = argparse.ArgumentParser(prog="iron-approve")
+    ap.add_argument("summary")
+    ap.add_argument("--detail", default="")
+    ap.add_argument("--kind", default="message", choices=["tool", "network", "message"])
+    ap.add_argument("--timeout", type=int, default=900)
+    a = ap.parse_args()
+    res = ask(a.kind, a.summary, a.detail, a.timeout)
+    if res is None:
+        print("iron-approve: no decision", file=sys.stderr)
+        return 2
+    print("allowed" if res[0] else "denied")
+    return 0 if res[0] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

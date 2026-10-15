@@ -1,0 +1,16 @@
+[Unit]
+Description=Iron Agent Desktops service
+Documentation=file:///usr/share/doc/iron-agent-desktops/README.md
+# Started on demand over D-Bus; exits by itself when no agent is running.
+
+[Service]
+Type=dbus
+BusName=org.ironlinux.AgentDesktops1
+ExecStart=/usr/libexec/iron/iron-agentd
+Restart=on-failure
+# Root: manages mounts, cgroups and containers, and writes exports the owner
+# requested into their own folders. It never needs these:
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectClock=yes
+LockPersonality=yes

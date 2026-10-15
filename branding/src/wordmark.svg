@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Iron Linux Ingot wordmark (mark + text). Original artwork, CC BY-SA 4.0. -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="560" height="128" viewBox="0 0 560 128">
+  <image href="logo.svg" x="0" y="0" width="128" height="128"/>
+  <text x="140" y="78" font-family="Inter" font-weight="700" font-size="54" letter-spacing="6" fill="#e6ebf0">IRON</text>
+  <text x="306" y="78" font-family="Inter" font-weight="300" font-size="54" letter-spacing="6" fill="#9aa8b8">LINUX</text>
+  <text x="142" y="108" font-family="Inter" font-weight="600" font-size="16" letter-spacing="9" fill="#8fb2ea">INGOT</text>
+</svg>

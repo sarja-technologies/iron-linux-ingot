@@ -1,0 +1,157 @@
+#!/usr/bin/python3
+"""iron-agent-runner - executes the owner's instructions inside an Agent Desktop.
+
+Runs as root inside the (unprivileged, isolated) agent. For each instruction in
+the control inbox it starts the configured runtime as the `agent` user, in a
+visible terminal on the agent's display, logging to ~/outbox/logs. It also
+serves `iron-elevate` requests: root commands that the host owner approved.
+"""
+import hashlib
+import json
+import os
+import pwd
+import shlex
+import socket
+import subprocess
+import threading
+import time
+
+CONTROL = "/run/iron-agent/control"
+INBOX = os.path.join(CONTROL, "inbox")
+STATUS = os.path.join(CONTROL, "status.json")
+RUNTIME_CONF = "/etc/iron-agent/runtime.json"
+RUNTIME_DIR = "/usr/share/iron-agents/runtimes"
+ELEVATE_SOCK = "/run/iron-agent-elevate.sock"
+AGENT = pwd.getpwnam("agent")
+HOME = AGENT.pw_dir
+OUTBOX = os.path.join(HOME, "outbox")
+WORKSPACE = os.path.join(HOME, "workspace")
+
+state = {"task": 0, "state": "idle", "summary": ""}
+
+
+def write_status(**kw):
+    state.update(kw, updated=time.time())
+    tmp = STATUS + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, STATUS)
+
+
+def runtime():
+    rid = "shell"
+    try:
+        with open(RUNTIME_CONF) as f:
+            rid = json.load(f).get("runtime", "shell")
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(os.path.join(RUNTIME_DIR, f"{rid}.json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        with open(os.path.join(RUNTIME_DIR, "shell.json")) as f:
+            return json.load(f)
+
+
+def agent_env():
+    return {"HOME": HOME, "USER": "agent", "LOGNAME": "agent", "SHELL": "/bin/bash",
+            "PATH": f"{HOME}/.local/bin:{HOME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+            "DISPLAY": ":1", "LANG": "C.UTF-8", "IRON_AGENT": "1"}
+
+
+def run_instruction(text):
+    rt = runtime()
+    state["task"] += 1
+    n = state["task"]
+    os.makedirs(os.path.join(OUTBOX, "logs"), exist_ok=True)
+    os.chown(OUTBOX, AGENT.pw_uid, AGENT.pw_gid)
+    os.chown(os.path.join(OUTBOX, "logs"), AGENT.pw_uid, AGENT.pw_gid)
+    log = os.path.join(OUTBOX, "logs", f"task-{n:03d}.log")
+    argv = [a.replace("{instruction}", text) for a in rt["instruction"]]
+    write_status(state="working", summary=text[:200])
+    script = (f"cd {shlex.quote(WORKSPACE)} && echo '# Iron Agent task {n}' && "
+              f"{shlex.join(argv)} 2>&1 | tee {shlex.quote(log)}; "
+              f"echo; echo '[task {n} finished - press Enter to close]'; read -r _")
+    term = ["xterm", "-title", f"Agent task {n}", "-geometry", "140x40", "-e", "bash", "-lc", script]
+    proc = subprocess.Popen(term, env=agent_env(), user=AGENT.pw_uid, group=AGENT.pw_gid,
+                            extra_groups=[], cwd=WORKSPACE, start_new_session=True)
+    proc.wait()
+    try:
+        with open(log, errors="replace") as f:
+            tail = f.read()[-600:].strip().splitlines()
+        summary = tail[-1] if tail else "completed"
+    except OSError:
+        summary = "completed"
+    write_status(state="done", summary=f"Task {n}: {summary[:240]}")
+
+
+def inbox_loop():
+    os.makedirs(WORKSPACE, exist_ok=True)
+    os.chown(WORKSPACE, AGENT.pw_uid, AGENT.pw_gid)
+    while True:
+        try:
+            names = sorted(n for n in os.listdir(INBOX) if n.endswith(".json") and not n.startswith("."))
+        except OSError:
+            names = []
+        for name in names:
+            path = os.path.join(INBOX, name)
+            try:
+                with open(path) as f:
+                    msg = json.load(f)
+                os.unlink(path)
+            except (OSError, ValueError):
+                continue
+            if msg.get("type") == "instruction" and msg.get("text"):
+                run_instruction(str(msg["text"]))
+        time.sleep(1)
+
+
+def elevate_server():
+    """Serve iron-elevate: run an approved root command, stream back its output."""
+    if os.path.exists(ELEVATE_SOCK):
+        os.unlink(ELEVATE_SOCK)
+    srv = socket.socket(socket.AF_UNIX)
+    srv.bind(ELEVATE_SOCK)
+    os.chmod(ELEVATE_SOCK, 0o666)
+    srv.listen(4)
+    while True:
+        conn, _ = srv.accept()
+        threading.Thread(target=handle_elevate, args=(conn,), daemon=True).start()
+
+
+def handle_elevate(conn):
+    with conn:
+        try:
+            rid = conn.recv(64).decode().strip()
+            if not rid.isalnum():
+                return
+            req_path = os.path.join(CONTROL, "requests", f"{rid}.json")
+            resp_path = os.path.join(CONTROL, "responses", f"{rid}.json")
+            with open(req_path, "rb") as f:
+                raw = f.read()
+            req = json.loads(raw)
+            with open(resp_path) as f:
+                resp = json.load(f)
+            # The response directory is writable only by root (the host side).
+            # ...and the approval must match the request bytes the owner reviewed.
+            if (os.stat(resp_path).st_uid != 0 or not resp.get("allow") or req.get("kind") != "elevate"
+                    or resp.get("request_sha256") != hashlib.sha256(raw).hexdigest()):
+                conn.sendall(b"denied\n")
+                return
+            argv = req.get("argv")
+            if not isinstance(argv, list) or not argv:
+                return
+            p = subprocess.run(argv, capture_output=True, text=True, timeout=3600)
+            conn.sendall((p.stdout + p.stderr + f"\n[exit {p.returncode}]\n").encode())
+            os.unlink(resp_path)  # one approval, one execution
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            try:
+                conn.sendall(f"error: {e}\n".encode())
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    write_status()
+    threading.Thread(target=elevate_server, daemon=True).start()
+    inbox_loop()

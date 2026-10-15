@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    # Unprivileged account that runs QEMU for VM agents.
+    if ! getent passwd iron-agent-vm >/dev/null; then
+        adduser --system --group --no-create-home --home /nonexistent iron-agent-vm >/dev/null
+    fi
+    adduser iron-agent-vm kvm >/dev/null 2>&1 || true
+    install -d -m 700 /var/lib/iron/agents
+    install -d -m 755 /var/lib/iron/agent-images
+fi
+#DEBHELPER#

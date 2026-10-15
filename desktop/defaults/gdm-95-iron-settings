@@ -1,0 +1,11 @@
+# Iron Linux Ingot login screen (compiled into GDM's dconf db by gdm3).
+[org/gnome/login-screen]
+logo='/usr/share/pixmaps/iron-ingot-gdm-logo.png'
+disable-user-list=false
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+accent-color='blue'
+font-name='Inter 10'
+icon-theme='Yaru-blue-dark'
+cursor-theme='Yaru'

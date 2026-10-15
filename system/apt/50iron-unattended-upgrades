@@ -1,0 +1,10 @@
+// Iron Linux Ingot: install security updates automatically (Ubuntu security
+// pocket); everything else is offered through the normal update flow.
+Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+        "${distro_id}ESMApps:${distro_codename}-apps-security";
+        "${distro_id}ESM:${distro_codename}-infra-security";
+};
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Ubuntu,archive=${distro_codename}-security";
+};

@@ -1,0 +1,5 @@
+# Prefer Mozilla's signed APT repository for Firefox (native .deb, amd64 + arm64)
+# over Ubuntu's snap transitional package.
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000

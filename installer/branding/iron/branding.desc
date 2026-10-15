@@ -1,0 +1,36 @@
+---
+componentName: iron
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 1000px,680px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         Iron Linux Ingot
+    shortProductName:    Iron Linux
+    version:             26.10
+    shortVersion:        26.10
+    versionedName:       Iron Linux Ingot 26.10
+    shortVersionedName:  Iron Linux 26.10
+    bootloaderEntryName: Iron Linux
+    productUrl:          https://github.com/crossainthero-lab/iron-linux-ingot
+    supportUrl:          https://github.com/crossainthero-lab/iron-linux-ingot/issues
+    knownIssuesUrl:      https://github.com/crossainthero-lab/iron-linux-ingot/blob/main/docs/STATUS.md
+    releaseNotesUrl:     https://github.com/crossainthero-lab/iron-linux-ingot/blob/main/README.md
+
+images:
+    productLogo:         "logo.png"
+    productIcon:         "logo.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+   SidebarBackground:        "#0e1115"
+   SidebarText:              "#c9d1d9"
+   SidebarTextCurrent:       "#ffffff"
+   SidebarBackgroundCurrent: "#3d7be0"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Iron Agent Desktop display (Xvnc + Openbox)
+After=iron-agent-vm-setup.service
+ConditionPathIsDirectory=/run/iron-agent/display
+
+[Service]
+User=agent
+Group=agent
+PAMName=login
+WorkingDirectory=~
+Environment=HOME=/home/agent
+ExecStart=/usr/lib/iron-agent/iron-agent-session
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

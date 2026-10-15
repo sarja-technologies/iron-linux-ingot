@@ -1,0 +1,171 @@
+#!/usr/bin/python3
+"""iron-agent - command-line control of Iron Agent Desktops.
+
+  iron-agent status                         feature state, host resources, images
+  iron-agent enable | disable               turn the feature on/off (admin)
+  iron-agent image build [--vm] [--runtime claude-code,codex] [--browser]
+                                            build the agent base image (root, needs network)
+  iron-agent list
+  iron-agent create NAME [--preset light|balanced|heavy] [--backend container|vm]
+                         [--runtime shell|claude-code|codex|agentdock]
+                         [--cpus N] [--cpu-quota PCT] [--memory MIB] [--storage GIB]
+                         [--network none|internet] [--gpu none|shared] [--max-minutes N]
+  iron-agent start|stop|pause|resume|delete ID
+  iron-agent send ID "instruction"
+  iron-agent open ID                        open the agent's desktop in a viewer
+  iron-agent preview ID [FILE.png]
+  iron-agent share ID PATH [--writable] | unshare ID PATH
+  iron-agent outputs ID | export ID REL_PATH [DEST_DIR]
+  iron-agent approvals | approve REQUEST_ID | deny REQUEST_ID
+  iron-agent snapshot ID NAME | restore ID NAME
+"""
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+sys.path.insert(0, "/usr/lib/iron-agents")
+
+from gi.repository import Gio, GLib  # noqa: E402
+
+BUS, PATH, IFACE = "org.ironlinux.AgentDesktops1", "/org/ironlinux/AgentDesktops1", "org.ironlinux.AgentDesktops1"
+
+
+def call(method, sig="", *args, out=True):
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+    try:
+        r = bus.call_sync(BUS, PATH, IFACE, method, GLib.Variant(f"({sig})", args) if sig else None,
+                          None, Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION, 180000, None)
+    except GLib.Error as e:
+        msg = Gio.DBusError.get_remote_error(e) and e.message.split(": ", 1)[-1] or e.message
+        sys.exit(f"iron-agent: {msg}")
+    v = r.unpack() if r else ()
+    return v[0] if v and out else None
+
+
+def fmt_agent(a):
+    r = a["resources"]
+    use = a.get("usage") or {}
+    mem = f"{use['memory_bytes'] >> 20}/{r['memory_mib']} MiB" if "memory_bytes" in use else f"{r['memory_mib']} MiB"
+    flag = f"  ⚠ {a['pending_approvals']} approval(s)" if a.get("pending_approvals") else ""
+    return (f"{a['id']}  {a['name'][:24]:<24} {a['state']:<9} {a['backend']:<9} {a['runtime']:<11} "
+            f"{r['cpu_threads']}cpu/{r['cpu_quota_percent']}%  {mem}  {r['storage_gib']}G  net:{r['network']}{flag}")
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    cmd, rest = argv[0], argv[1:]
+    if cmd == "status":
+        s = json.loads(call("GetStatus"))
+        h = s["host"]
+        print(f"Agent Desktops: {'on' if s['enabled'] else 'off'}   live: {s['live_agents']}/{s['max_agents']}")
+        print(f"Host: {h['threads']} threads, {h['memory_mib']} MiB, KVM {'yes' if h['kvm'] else 'no'}, "
+              f"GPU render nodes: {', '.join(h['render_nodes']) or 'none'}, "
+              f"GPU partitioning: {h['gpu_partitioning']}")
+        print(f"Images: container {'ready' if s['images']['container'] else 'not built'}, "
+              f"vm {'ready' if s['images']['vm'] else 'not built'}")
+        for name, p in s["presets"].items():
+            print(f"  preset {name:<9} {p['cpu_threads']} threads, {p['memory_mib']} MiB, "
+                  f"{p['storage_gib']} GiB, gpu {p['gpu']}, network {p['network']}")
+    elif cmd in ("enable", "disable"):
+        call("SetEnabled", "b", cmd == "enable", out=False)
+        print(f"Agent Desktops {cmd}d")
+    elif cmd == "image":
+        ap = argparse.ArgumentParser(prog="iron-agent image build")
+        ap.add_argument("action", choices=["build"])
+        ap.add_argument("--name", default="base")
+        ap.add_argument("--vm", action="store_true")
+        ap.add_argument("--runtime", default="")
+        ap.add_argument("--browser", action="store_true")
+        a = ap.parse_args(rest)
+        if os.geteuid() != 0:
+            sys.exit("iron-agent: building images needs root (sudo iron-agent image build ...)")
+        from iron_agents import image
+        image.build(a.name, vm=a.vm, runtimes=[r for r in a.runtime.split(",") if r], browser=a.browser)
+    elif cmd == "list":
+        agents = json.loads(call("ListAgents"))
+        if not agents:
+            print("no agent desktops")
+        for a in agents:
+            print(fmt_agent(a))
+    elif cmd == "create":
+        ap = argparse.ArgumentParser(prog="iron-agent create")
+        ap.add_argument("name")
+        ap.add_argument("--preset", default="balanced", choices=["light", "balanced", "heavy", "custom"])
+        ap.add_argument("--backend", choices=["container", "vm"])
+        ap.add_argument("--runtime", default="shell")
+        for opt, key in (("--cpus", "cpu_threads"), ("--cpu-quota", "cpu_quota_percent"), ("--memory", "memory_mib"),
+                         ("--storage", "storage_gib"), ("--max-minutes", "max_runtime_minutes")):
+            ap.add_argument(opt, dest=key, type=int)
+        ap.add_argument("--network", choices=["none", "internet"])
+        ap.add_argument("--gpu", choices=["none", "shared"])
+        a = ap.parse_args(rest)
+        cfg = {"name": a.name, "preset": a.preset, "runtime": a.runtime}
+        if a.backend:
+            cfg["backend"] = a.backend
+        res = {k: getattr(a, k) for k in ("cpu_threads", "cpu_quota_percent", "memory_mib", "storage_gib",
+                                          "max_runtime_minutes", "network", "gpu") if getattr(a, k) is not None}
+        if res:
+            cfg["resources"] = res
+        print(call("CreateAgent", "s", json.dumps(cfg)))
+    elif cmd in ("start", "stop", "pause", "resume", "delete"):
+        call({"delete": "DeleteAgent"}.get(cmd, cmd.capitalize()), "s", rest[0], out=False)
+        print(f"{cmd}: {rest[0]}")
+    elif cmd == "send":
+        call("SendInstruction", "ss", rest[0], " ".join(rest[1:]), out=False)
+        print("instruction sent")
+    elif cmd == "open":
+        d = json.loads(call("GetDisplay", "s", rest[0]))
+        if not d["available"]:
+            sys.exit("iron-agent: the agent desktop is not running yet")
+        viewer = shutil.which("remote-viewer")
+        if not viewer:
+            sys.exit("iron-agent: install virt-viewer to open agent desktops")
+        os.execv(viewer, [viewer, "--title", f"Agent Desktop {rest[0]}", d["viewer_uri"]])
+    elif cmd == "preview":
+        src = call("GetPreview", "s", rest[0])
+        dest = rest[1] if len(rest) > 1 else f"agent-{rest[0]}.png"
+        shutil.copy(src, dest)
+        print(dest)
+    elif cmd == "share":
+        call("GrantShare", "ssb", rest[0], os.path.abspath(rest[1]), "--writable" in rest, out=False)
+        print("shared (takes effect the next time the agent starts)")
+    elif cmd == "unshare":
+        call("RevokeShare", "ss", rest[0], os.path.abspath(rest[1]), out=False)
+        print("access revoked")
+    elif cmd == "outputs":
+        for f in json.loads(call("ListOutputs", "s", rest[0])):
+            print(f"{f['size']:>10}  {f['path']}")
+    elif cmd == "export":
+        dest = os.path.abspath(rest[2] if len(rest) > 2 else ".")
+        print(call("ExportOutput", "sss", rest[0], rest[1], dest))
+    elif cmd == "approvals":
+        for r in json.loads(call("ListApprovals")):
+            print(f"{r['id']}  [{r['kind']}] {r['agent_name']}: {r['summary']}")
+            if r["detail"] and r["detail"] != r["summary"]:
+                print(f"    {r['detail'][:300]}")
+    elif cmd in ("approve", "deny"):
+        call("Decide", "sb", rest[0], cmd == "approve", out=False)
+        print(f"{cmd}d {rest[0]}")
+    elif cmd == "snapshot":
+        call("CreateSnapshot", "ss", rest[0], rest[1], out=False)
+        print(f"snapshot {rest[1]} created")
+    elif cmd == "restore":
+        call("RestoreSnapshot", "ss", rest[0], rest[1], out=False)
+        print(f"restored {rest[1]}")
+    else:
+        sys.exit(f"iron-agent: unknown command {cmd!r} (see iron-agent --help)")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except IndexError:
+        sys.exit("iron-agent: missing argument (see iron-agent --help)")
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"iron-agent: {e}")

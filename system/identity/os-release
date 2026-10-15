@@ -1,0 +1,14 @@
+PRETTY_NAME="Iron Linux Ingot 26.10"
+NAME="Iron Linux"
+VERSION_ID="26.10"
+VERSION="26.10 (Ingot)"
+VERSION_CODENAME=resolute
+ID=iron
+ID_LIKE="ubuntu debian"
+VARIANT="Ingot"
+VARIANT_ID=ingot
+HOME_URL="https://github.com/crossainthero-lab/iron-linux-ingot"
+SUPPORT_URL="https://github.com/crossainthero-lab/iron-linux-ingot/issues"
+BUG_REPORT_URL="https://github.com/crossainthero-lab/iron-linux-ingot/issues"
+LOGO=iron-logo
+UBUNTU_CODENAME=resolute

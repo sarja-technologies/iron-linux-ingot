@@ -1,0 +1,4 @@
+{"id": "codex", "name": "OpenAI Codex CLI", "description": "OpenAI's Codex CLI in non-interactive exec mode, sandboxed to the workspace. Sign in inside the agent desktop (codex login).",
+ "install": ["npm", "install", "-g", "--prefix", "/usr/local", "@openai/codex"],
+ "instruction": ["codex", "exec", "--sandbox", "workspace-write", "{instruction}"],
+ "docs": "https://github.com/openai/codex"}

@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+PKGS := iron-base-files iron-branding iron-shell iron-desktop-settings iron-settings iron-agent-desktops iron-installer-config
+
+%:
+	dh $@ --with python3
+
+override_dh_auto_build:
+	$(MAKE) branding
+
+override_dh_auto_install:
+	set -e; for p in $(PKGS); do $(MAKE) install-$$p DESTDIR=$(CURDIR)/debian/$$p; done
+
+override_dh_auto_test:
+	$(MAKE) test
+
+override_dh_installsystemd:
+	dh_installsystemd -piron-base-files --name=iron-hwprofile iron-hwprofile.service
+	# D-Bus activated on demand: installed but never enabled or started at boot.
+	dh_installsystemd -piron-agent-desktops --no-enable --no-start iron-agentd.service

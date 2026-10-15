@@ -1,0 +1,2 @@
+{"id": "agentdock", "name": "AgentDock / AgentDock Pro", "description": "Runs the AgentDock desktop app (AppImage you provide through a shared folder) inside the isolated desktop, driving the agent CLIs installed in the agent. AgentDock spawns CLIs locally, so isolation applies to everything it runs.",
+ "install": [], "instruction": ["bash", "-lc", "ls ~/shared/*/AgentDock*.AppImage >/dev/null 2>&1 && exec ~/shared/*/AgentDock*.AppImage --no-sandbox || echo 'Share a folder containing the AgentDock AppImage with this agent first.'"]}

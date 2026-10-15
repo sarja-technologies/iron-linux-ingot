@@ -1,0 +1,17 @@
+[Unit]
+Description=Iron Linux hardware detection and adaptive performance profile
+Documentation=man:iron-hwprofile(8)
+After=local-fs.target systemd-udev-settle.service
+Before=display-manager.service
+ConditionPathExists=!/etc/iron/hwprofile.disabled
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/iron/iron-hwprofile apply
+RemainAfterExit=yes
+# Read-only probing plus writes to /run/iron and the dconf system db.
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,52 @@
+#!/bin/sh
+# Runs inside the newly installed system (Calamares chroot).
+# Applies the Ingot choices recorded by contextualprocess@choices and removes
+# live-session-only software.
+set -u
+log() { echo "iron-postinstall: $*"; }
+choice() { cat "/var/lib/iron-installer/$1" 2>/dev/null || echo "$2"; }
+EDITION=$(choice edition full)
+AGENTS=$(choice agents off)
+DRIVERS=$(choice drivers auto)
+log "edition=$EDITION agents=$AGENTS drivers=$DRIVERS"
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Live-only packages (listed on the medium by the image builder).
+if [ -r /cdrom/casper/filesystem.manifest-remove ]; then
+    remove=$(grep -v '^#' /cdrom/casper/filesystem.manifest-remove | while read -r p; do
+        dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "ok installed" && echo "$p"; done)
+    # shellcheck disable=SC2086 # intentional word splitting of the package list
+    [ -n "$remove" ] && apt-get purge -y $remove
+fi
+rm -f /etc/casper.conf
+
+# 2. Edition: the medium carries the full set; Lite drops the extra applications.
+if [ "$EDITION" = lite ]; then
+    apt-mark manual ingot-desktop-lite >/dev/null
+    # Keep Agent Desktops (already on the medium) if the user enabled them.
+    [ "$AGENTS" = on ] && apt-mark manual iron-agent-desktops virt-viewer >/dev/null
+    apt-get purge -y ingot-desktop gnome-software gnome-software-plugin-flatpak \
+        flatpak cups cups-browsed gnome-calculator gnome-system-monitor file-roller baobab \
+        system-config-printer 2>/dev/null || true
+fi
+apt-get autoremove --purge -y
+
+# 3. Agent Desktops: off unless chosen (the service is on-demand either way).
+if [ -f /etc/iron/agent-desktops.conf ]; then
+    v=false; [ "$AGENTS" = on ] && v=true
+    sed -i "s/^\s*enabled\s*=.*/enabled = $v/" /etc/iron/agent-desktops.conf
+fi
+
+# 4. Drivers (needs network; never fatal).
+if [ "$DRIVERS" = auto ]; then
+    if command -v ubuntu-drivers >/dev/null && apt-get update >/dev/null 2>&1; then
+        ubuntu-drivers install || log "driver installation failed; use Iron Settings → Hardware later"
+    else
+        log "no network: recommended drivers can be installed later from Iron Settings → Hardware"
+    fi
+fi
+
+# 5. First boot of the installed system detects hardware again.
+rm -f /run/iron/hardware.json /etc/dconf/db/iron-hw.d/00-hwprofile
+rm -rf /var/lib/iron-installer
+exit 0

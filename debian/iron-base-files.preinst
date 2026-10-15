@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+# Iron identity replaces Ubuntu's via dpkg-divert so base-files upgrades keep working.
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+    for f in /usr/lib/os-release /etc/lsb-release /etc/issue /etc/issue.net /etc/legal /etc/update-motd.d/10-help-text; do
+        dpkg-divert --package iron-base-files --add --rename --divert "$f.ubuntu" "$f"
+    done
+fi
+#DEBHELPER#

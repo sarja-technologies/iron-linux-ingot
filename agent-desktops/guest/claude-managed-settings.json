@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|WebFetch",
+        "hooks": [{"type": "command", "command": "/usr/bin/iron-approve --claude-hook", "timeout": 900}]
+      }
+    ]
+  }
+}

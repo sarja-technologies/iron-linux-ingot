@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<wallpapers>
+  <wallpaper deleted="false">
+    <name>Ingot Dawn</name>
+    <filename>/usr/share/backgrounds/iron/ingot-dawn.jpg</filename>
+    <filename-dark>/usr/share/backgrounds/iron/ingot-steel.jpg</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#0e1115</pcolor>
+    <scolor>#0e1115</scolor>
+  </wallpaper>
+  <wallpaper deleted="false">
+    <name>Ingot Forge</name>
+    <filename>/usr/share/backgrounds/iron/ingot-forge.jpg</filename>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#0e1115</pcolor>
+    <scolor>#0e1115</scolor>
+  </wallpaper>
+  <wallpaper deleted="false">
+    <name>Ingot Steel</name>
+    <filename>/usr/share/backgrounds/iron/ingot-steel.jpg</filename>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#0e1115</pcolor>
+    <scolor>#0e1115</scolor>
+  </wallpaper>
+</wallpapers>

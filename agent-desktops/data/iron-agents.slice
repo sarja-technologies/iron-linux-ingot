@@ -1,0 +1,10 @@
+[Unit]
+Description=Iron Agent Desktops (all agents together)
+Before=slices.target
+
+[Slice]
+# Agents always yield to the interactive desktop under contention.
+CPUWeight=50
+IOWeight=50
+# Hard ceiling for all agents combined; per-agent limits are set when each starts.
+MemoryMax=85%

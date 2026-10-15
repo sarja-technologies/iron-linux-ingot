@@ -1,0 +1,8 @@
+#!/usr/bin/python3
+"""Iron Agent Desktops system service (D-Bus activated)."""
+import sys
+
+sys.path.insert(0, "/usr/lib/iron-agents")
+from iron_agents.service import main  # noqa: E402
+
+main()

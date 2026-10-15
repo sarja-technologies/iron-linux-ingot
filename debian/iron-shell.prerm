@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ] || [ "$1" = deconfigure ]; then
+    update-alternatives --remove gdm-theme.gresource /usr/share/gnome-shell/theme/Iron/gnome-shell-theme.gresource
+fi
+#DEBHELPER#

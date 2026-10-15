@@ -1,0 +1,52 @@
+#!/bin/bash
+# iron-drivers - Iron Linux driver management (wraps Ubuntu's ubuntu-drivers).
+#
+#   iron-drivers list               show detected devices and recommended drivers
+#   iron-drivers install            install the recommended drivers (NVIDIA, Broadcom wifi, ...)
+#   iron-drivers install PKG        install a specific driver package from `list`
+#   iron-drivers reset-graphics     recovery: remove proprietary NVIDIA drivers and
+#                                   fall back to the open kernel/Mesa stack
+#   iron-drivers status             show the graphics driver in use per GPU
+set -euo pipefail
+
+need_root() { [[ ${EUID} -eq 0 ]] || { echo "iron-drivers: run as root (sudo iron-drivers $*)" >&2; exit 1; }; }
+
+case "${1:-status}" in
+    list)
+        ubuntu-drivers list --recommended 2>/dev/null || true
+        echo "---"
+        ubuntu-drivers devices 2>/dev/null || echo "no devices needing extra drivers"
+        ;;
+    install)
+        need_root install
+        if [[ -n "${2:-}" ]]; then
+            apt-get install -y "$2"
+        else
+            ubuntu-drivers install
+        fi
+        echo "iron-drivers: reboot to load the new drivers."
+        ;;
+    reset-graphics)
+        need_root reset-graphics
+        mapfile -t pkgs < <(dpkg-query -W -f='${Package} ${Status}\n' 'nvidia-*' 'libnvidia-*' 2>/dev/null \
+            | awk '$NF=="installed"{print $1}')
+        if [[ ${#pkgs[@]} -eq 0 ]]; then
+            echo "iron-drivers: no proprietary NVIDIA packages installed; nothing to reset."
+        else
+            echo "iron-drivers: removing ${pkgs[*]}"
+            apt-get purge -y "${pkgs[@]}"
+        fi
+        rm -f /etc/modprobe.d/blacklist-nouveau.conf /etc/modprobe.d/nvidia-graphics-drivers*.conf
+        update-initramfs -u
+        echo "iron-drivers: open graphics stack restored (nouveau/Mesa). Reboot now."
+        ;;
+    status)
+        for card in /sys/class/drm/card[0-9]; do
+            [[ -e "${card}/device/driver" ]] || continue
+            printf '%s: %s (%s:%s)\n' "${card##*/}" "$(basename "$(readlink -f "${card}/device/driver")")" \
+                "$(cat "${card}/device/vendor" 2>/dev/null || echo platform)" "$(cat "${card}/device/device" 2>/dev/null || echo -)"
+        done
+        ;;
+    -h|--help|help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) echo "iron-drivers: unknown command '$1' (try --help)" >&2; exit 2 ;;
+esac

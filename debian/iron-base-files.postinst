@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    [ -e /etc/os-release ] || ln -sfn ../usr/lib/os-release /etc/os-release
+    mkdir -p /etc/dconf/db/iron-hw.d
+    if command -v dconf >/dev/null; then dconf update || true; fi
+fi
+#DEBHELPER#

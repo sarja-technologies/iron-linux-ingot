@@ -1,0 +1,10 @@
+# Firmware, microcode and driver tooling.  [arch] / {profile} filters supported.
+linux-firmware
+intel-microcode [amd64]
+amd64-microcode [amd64]
+thermald [amd64]
+fwupd
+ubuntu-drivers-common
+mesa-vulkan-drivers
+libgl1-mesa-dri
+systemd-zram-generator

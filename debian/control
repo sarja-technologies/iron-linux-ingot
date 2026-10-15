@@ -1,0 +1,154 @@
+Source: iron-ingot
+Section: misc
+Priority: optional
+Maintainer: Iron Linux Developers <crossainthero@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               fonts-dejavu-core,
+               dh-python,
+               python3,
+               python3-numpy,
+               python3-pil,
+               librsvg2-bin,
+               fonts-inter,
+               plymouth-theme-spinner,
+               yaru-theme-gnome-shell,
+               libglib2.0-bin,
+               libglib2.0-dev-bin,
+               gjs <!nocheck>
+Standards-Version: 4.7.0
+Homepage: https://github.com/crossainthero-lab/iron-linux-ingot
+Rules-Requires-Root: no
+
+Package: iron-base-files
+Architecture: all
+Depends: base-files,
+         python3,
+         dconf-cli,
+         ca-certificates,
+         ${misc:Depends}
+Recommends: systemd-zram-generator, ubuntu-drivers-common, unattended-upgrades, friendly-recovery
+Description: Iron Linux Ingot base system identity and policy
+ OS identity (os-release, lsb-release, issue), APT policy (no snapd, Mozilla's
+ signed Firefox repository), zram swap, sysctl defaults, GRUB defaults,
+ adaptive hardware profile (iron-hwprofile), driver management (iron-drivers)
+ and recovery-mode options.
+
+Package: iron-branding
+Architecture: all
+Depends: plymouth-theme-spinner, ${misc:Depends}
+Description: Iron Linux Ingot artwork
+ Original Ingot wallpapers, logo, wordmark and the Plymouth boot splash.
+
+Package: iron-shell
+Architecture: all
+Depends: gnome-shell (>= 49), gnome-shell (<< 51),
+         gnome-shell-ubuntu-extensions,
+         yaru-theme-gnome-shell,
+         iron-branding (= ${source:Version}),
+         ${misc:Depends}
+Description: Iron Linux Ingot GNOME Shell experience
+ First-party GNOME Shell extensions maintained with the OS:
+  - Iron Tiling: two/three-column and 2x2/3x3 grid layouts, drag-to-snap,
+    keyboard layout selection, gaps, per-workspace and multi-monitor layouts,
+    resizable tiles with persistent ratios.
+  - Iron Shell: panel identity, lock-screen styling and the Agent Desktops
+    indicator.
+ Also provides the Ingot login-screen (GDM) theme.
+
+Package: iron-desktop-settings
+Architecture: all
+Depends: iron-shell (= ${source:Version}),
+         iron-branding (= ${source:Version}),
+         fonts-inter,
+         fonts-hack,
+         yaru-theme-gtk,
+         yaru-theme-icon,
+         ${misc:Depends}
+Description: Iron Linux Ingot desktop defaults
+ GSettings defaults for the Ingot GNOME desktop (theme, fonts, dock, panel,
+ tiling, wallpapers) and the login screen. Users can override every setting.
+
+Package: iron-settings
+Architecture: all
+Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.6), policykit-1 | pkexec,
+         iron-shell (= ${source:Version}), ${misc:Depends}
+Recommends: virt-viewer, ubuntu-drivers-common
+Description: Iron Settings for Iron Linux Ingot
+ One place for Ingot-specific settings: appearance, the Iron Tiling layouts,
+ Agent Desktops (create, watch, instruct, approve, export, snapshot), hardware
+ and driver management, and updates.
+
+Package: iron-agent-desktops
+Architecture: all
+Depends: python3, python3-gi, python3-pil, systemd-container, polkitd, dbus,
+         debootstrap, e2fsprogs, util-linux, ${misc:Depends}
+Recommends: passt, qemu-system-x86 [amd64] | qemu-system-arm, qemu-utils, virt-viewer
+Description: Iron Agent Desktops - isolated desktops for AI agents
+ Runs AI agents (Claude Code, Codex CLI, AgentDock, or a plain desktop) in
+ separate, isolated desktops that you can watch and instruct while you keep
+ using your own desktop. Agents run in systemd-nspawn containers with private
+ user namespaces or in QEMU/KVM virtual machines, with enforced CPU, memory,
+ storage and runtime limits, no network or host files unless granted, approval
+ gates for sensitive actions, snapshots and reviewed exports. The service is
+ D-Bus activated and idle when unused; the feature is off until enabled.
+
+Package: iron-installer-config
+Architecture: all
+Depends: calamares (>= 3.3), calamares-settings-ubuntu-common-data, cryptsetup, squashfs-tools,
+         sudo, iron-branding (= ${source:Version}), ${misc:Depends}
+Conflicts: calamares-settings-lubuntu, calamares-settings-ubuntu-unity, calamares-settings-ubuntustudio
+Description: Iron Linux Ingot installer configuration
+ Calamares sequence, branding and post-install steps for installing Ingot from
+ the live medium: edition (full or lite), optional Agent Desktops, recommended
+ drivers, guided or manual partitioning with optional LUKS2 encryption, UEFI
+ Secure Boot capable boot loader. Live medium only; removed after installation.
+
+Package: ingot-desktop-lite
+Architecture: all
+Depends: iron-base-files (= ${source:Version}),
+         iron-desktop-settings (= ${source:Version}),
+         gnome-shell,
+         gdm3,
+         gnome-session,
+         gnome-control-center,
+         nautilus,
+         ptyxis,
+         gnome-text-editor,
+         xdg-desktop-portal-gnome,
+         xwayland,
+         pipewire-audio,
+         wireplumber,
+         gnome-keyring,
+         network-manager,
+         bluez,
+         power-profiles-daemon,
+         plymouth,
+         fwupd,
+         firefox,
+         iron-settings (= ${source:Version}),
+         ${misc:Depends}
+Recommends: loupe, papers, gnome-disk-utility, ubuntu-drivers-common
+Description: Iron Linux Ingot desktop (lightweight)
+ The Ingot GNOME desktop with a minimal application set: files, terminal,
+ text editor and web browser.
+
+Package: ingot-desktop
+Architecture: all
+Depends: ingot-desktop-lite (= ${source:Version}),
+         loupe,
+         papers,
+         gnome-calculator,
+         gnome-system-monitor,
+         gnome-disk-utility,
+         file-roller,
+         baobab,
+         gnome-software,
+         gnome-software-plugin-flatpak,
+         cups,
+         iron-agent-desktops (= ${source:Version}),
+         virt-viewer,
+         ${misc:Depends}
+Description: Iron Linux Ingot desktop (full)
+ The complete Ingot desktop: the lightweight set plus image viewer, document
+ viewer, calculator, system monitor, disks, archives, software centre with
+ Flatpak support and printing.

@@ -1,0 +1,17 @@
+# Everyday terminal workflows expected on an Ubuntu/Debian system.
+sudo
+nano
+less
+bash-completion
+command-not-found
+curl
+wget
+openssh-client
+gnupg
+unattended-upgrades
+apt-transport-https
+man-db {full}
+manpages {full}
+rsync
+zstd
+unzip

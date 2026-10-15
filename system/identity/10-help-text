@@ -1,0 +1,7 @@
+#!/bin/sh
+# Iron Linux Ingot login help (replaces Ubuntu's 10-help-text via dpkg-divert).
+printf '\n'
+printf ' * Settings:      iron-settings   (tiling, Agent Desktops, drivers, updates)\n'
+printf ' * Drivers:       iron-drivers list | install | reset-graphics\n'
+printf ' * Packages:      apt works as on Ubuntu/Debian (sudo apt install ...)\n'
+printf ' * Project:       https://github.com/crossainthero-lab/iron-linux-ingot\n'

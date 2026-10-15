@@ -1,0 +1,15 @@
+[Unit]
+Description=Iron Agent Desktop VM setup (control share, disk growth)
+ConditionKernelCommandLine=iron.agent=1
+ConditionVirtualization=vm
+DefaultDependencies=no
+After=local-fs.target
+Before=iron-agent-display.service iron-agent-runner.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/iron-agent/iron-agent-vm-setup
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+{"id": "shell", "name": "Desktop only", "description": "An isolated desktop with a terminal; instructions run as shell commands.",
+ "install": [], "instruction": ["bash", "-lc", "{instruction}"]}

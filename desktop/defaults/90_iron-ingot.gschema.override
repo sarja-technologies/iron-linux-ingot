@@ -1,0 +1,79 @@
+# Iron Linux Ingot desktop defaults. Users can change any of these; nothing is locked.
+# Reference: the project owner's Ubuntu GNOME desktop (dark, bottom intellihide
+# dock, Inter, min/max/close) - minus the desktop cube and third-party extensions.
+
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/iron/ingot-dawn.jpg'
+picture-uri-dark='file:///usr/share/backgrounds/iron/ingot-dawn.jpg'
+picture-options='zoom'
+primary-color='#0e1115'
+
+[org.gnome.desktop.screensaver]
+picture-uri='file:///usr/share/backgrounds/iron/ingot-steel.jpg'
+picture-options='zoom'
+primary-color='#0e1115'
+
+[org.gnome.desktop.interface]
+color-scheme='prefer-dark'
+accent-color='blue'
+gtk-theme='Yaru-blue-dark'
+icon-theme='Yaru-blue-dark'
+cursor-theme='Yaru'
+font-name='Inter 10'
+document-font-name='Inter 10'
+monospace-font-name='Hack 10'
+font-antialiasing='rgba'
+font-hinting='slight'
+clock-show-date=true
+enable-hot-corners=true
+
+[org.gnome.desktop.wm.preferences]
+button-layout=':minimize,maximize,close'
+titlebar-font='Inter Semi-Bold 10'
+focus-new-windows='smart'
+
+[org.gnome.mutter]
+# Iron Tiling provides edge snapping and layouts.
+edge-tiling=false
+dynamic-workspaces=true
+center-new-windows=true
+attach-modal-dialogs=true
+
+[org.gnome.shell]
+enabled-extensions=['iron-shell@ironlinux.org', 'iron-tiling@ironlinux.org', 'ubuntu-dock@ubuntu.com', 'ubuntu-appindicators@ubuntu.com']
+favorite-apps=['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Ptyxis.desktop', 'org.gnome.TextEditor.desktop', 'org.ironlinux.Settings.desktop']
+welcome-dialog-last-shown-version='999'
+
+[org.gnome.shell.extensions.dash-to-dock]
+dock-position='BOTTOM'
+extend-height=false
+dock-fixed=false
+autohide=true
+intellihide=true
+intellihide-mode='ALL_WINDOWS'
+dash-max-icon-size=48
+transparency-mode='FIXED'
+background-opacity=0.6
+background-color='#0e1115'
+custom-background-color=true
+apply-custom-theme=false
+custom-theme-shrink=true
+running-indicator-style='DOTS'
+custom-theme-customize-running-dots=true
+custom-theme-running-dots-color='#8fb2ea'
+custom-theme-running-dots-border-width=0
+show-apps-at-top=false
+show-trash=false
+show-mounts=false
+disable-overview-on-startup=true
+
+[org.gnome.desktop.peripherals.touchpad]
+tap-to-click=true
+natural-scroll=true
+
+[org.gnome.settings-daemon.plugins.power]
+power-button-action='interactive'
+
+[org.gnome.software]
+# Ingot does not ship snapd; keep GNOME Software to .deb (and optional Flatpak).
+packaging-format-preference=['deb', 'flatpak']

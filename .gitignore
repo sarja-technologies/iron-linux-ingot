@@ -11,3 +11,4 @@ __pycache__/
 !/debian/source/
 /debian/tmp/
 /build-area/
+build-area/

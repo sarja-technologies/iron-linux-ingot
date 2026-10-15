@@ -1,0 +1,3 @@
+# Live session only (removed with the installer package after installation).
+[org.gnome.shell]
+favorite-apps=['install-iron-linux.desktop', 'firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Ptyxis.desktop', 'org.ironlinux.Settings.desktop']

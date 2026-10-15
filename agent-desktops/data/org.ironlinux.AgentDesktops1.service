@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.ironlinux.AgentDesktops1
+Exec=/bin/false
+User=root
+SystemdService=iron-agentd.service

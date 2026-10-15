@@ -1,0 +1,12 @@
+#!/bin/sh
+# VM agents: mount the host control share, expose display dir, grow the root fs.
+set -eu
+mkdir -p /run/iron-agent/control /run/iron-agent/display
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144 ironctl /run/iron-agent/control
+mkdir -p /run/iron-agent/control/outbox
+chown agent:agent /run/iron-agent/control/outbox
+if [ ! -L /home/agent/outbox ]; then
+    rm -rf /home/agent/outbox
+    ln -s /run/iron-agent/control/outbox /home/agent/outbox
+fi
+resize2fs /dev/vda >/dev/null 2>&1 || true

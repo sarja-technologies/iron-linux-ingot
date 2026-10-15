@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Iron Linux</vendor>
+  <vendor_url>https://github.com/crossainthero-lab/iron-linux-ingot</vendor_url>
+  <icon_name>iron-logo</icon_name>
+
+  <action id="org.ironlinux.agentdesktops.use">
+    <description>Create and run your own Agent Desktops</description>
+    <message>Authentication is required to use Agent Desktops</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ironlinux.agentdesktops.configure">
+    <description>Turn Agent Desktops on or off for this computer</description>
+    <message>Authentication is required to change Agent Desktops settings</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ironlinux.agentdesktops.allocate-beyond-limits">
+    <description>Give an agent more than the standard share of this computer</description>
+    <message>Authentication is required to allocate a large share of CPU or memory to an agent</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ironlinux.agentdesktops.manage-all">
+    <description>Manage other users' Agent Desktops</description>
+    <message>Authentication is required to manage another user's Agent Desktops</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

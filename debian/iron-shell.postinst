@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    update-alternatives --install /usr/share/gnome-shell/gdm-theme.gresource gdm-theme.gresource \
+        /usr/share/gnome-shell/theme/Iron/gnome-shell-theme.gresource 20
+fi
+#DEBHELPER#

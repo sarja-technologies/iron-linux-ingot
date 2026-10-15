@@ -1,0 +1,4 @@
+{"id": "claude-code", "name": "Claude Code", "description": "Anthropic's Claude Code CLI. Sign in inside the agent desktop (claude /login) or provide an API key via a shared secret file. Tool use is gated by iron-approve through Claude Code managed hooks.",
+ "install": ["npm", "install", "-g", "--prefix", "/usr/local", "@anthropic-ai/claude-code"],
+ "instruction": ["claude", "-p", "{instruction}"],
+ "docs": "https://docs.claude.com/en/docs/claude-code"}

@@ -100,8 +100,8 @@ def main():
     for name, v in VARIANTS.items():
         if args.only and name != args.only:
             continue
-        path = os.path.join(args.outdir, f"{name}.png")
-        render(v, args.width, args.height).save(path, optimize=True)
+        path = os.path.join(args.outdir, f"{name}.jpg")
+        render(v, args.width, args.height).save(path, quality=92, optimize=True, progressive=True)
         print(path)
 
 

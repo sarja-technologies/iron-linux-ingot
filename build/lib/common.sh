@@ -82,7 +82,7 @@ chroot_umount() {
     _INGOT_MOUNTS=()
     # Belt and braces: anything still mounted below ROOTFS (e.g. from an aborted run).
     if [[ -n "${ROOTFS:-}" && -d "${ROOTFS}" ]]; then
-        findmnt -rn -o TARGET | grep -F "${ROOTFS}/" | sort -r | while read -r m; do
+        { findmnt -rn -o TARGET | grep -F "${ROOTFS}/" || true; } | sort -r | while read -r m; do
             umount -l "${m}" 2>/dev/null || true
         done
     fi

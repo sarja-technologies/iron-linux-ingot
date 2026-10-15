@@ -1,0 +1,4 @@
+#!/bin/sh
+# Launch the Ingot installer from the live session (Wayland-safe: keeps the
+# session's display variables when elevating).
+exec sudo -E env QT_QPA_PLATFORM=wayland\;xcb calamares -d "$@" >/tmp/calamares-launch.log 2>&1

@@ -1,0 +1,20 @@
+
+/* ---- Iron Linux Ingot login screen (appended to Yaru's gdm.css) ---- */
+#lockDialogGroup {
+  background: #0e1115 url("resource:///org/gnome/shell/theme/iron-login.png");
+  background-size: cover;
+  background-position: center;
+}
+.login-dialog { background-color: transparent; }
+.login-dialog StEntry, .login-dialog-prompt-entry {
+  border-radius: 12px;
+  background-color: rgba(14, 17, 21, 0.6);
+  border: 1px solid rgba(201, 209, 217, 0.12);
+}
+.login-dialog StEntry:focus { border-color: #3d7be0; }
+.login-dialog-button.default-button, .login-dialog .button.default {
+  background-color: #3d7be0;
+  color: #ffffff;
+}
+.login-dialog-user-list-item:focus .login-dialog-timed-login-indicator { background-color: #3d7be0; }
+.login-dialog-banner, .login-dialog-message { color: #c9d1d9; }

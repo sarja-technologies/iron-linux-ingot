@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Install Iron Linux
+Comment=Install Iron Linux Ingot on this computer
+Exec=install-iron-linux
+Icon=iron-logo
+Terminal=false
+Categories=System;
+Keywords=install;installer;calamares;iron;

@@ -1,0 +1,6 @@
+# Iron Linux Ingot ships native .deb applications only. snapd is blocked so that
+# Recommends or transitional packages cannot pull it in silently.
+# To opt in deliberately: sudo rm /etc/apt/preferences.d/iron-no-snap.pref
+Package: snapd
+Pin: release a=*
+Pin-Priority: -10

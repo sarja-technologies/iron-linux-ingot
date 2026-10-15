@@ -1,0 +1,7 @@
+#!/bin/sh
+# friendly-recovery option: reset graphics drivers to the open stack.
+if [ "$1" = "test" ]; then
+    echo "Iron: reset graphics drivers (remove proprietary NVIDIA)"
+    exit 0
+fi
+/usr/libexec/iron/iron-drivers reset-graphics

@@ -1,8 +1,10 @@
 # shellcheck shell=bash
 # Stage 10: minimal Ubuntu base via debootstrap (cached as a tarball per arch).
+# shellcheck disable=SC2153 # MIRROR is exported by arch_setup in lib/common.sh
 
 stage_bootstrap() {
     local tarball="${CACHE}/debootstrap-${INGOT_UBUNTU_SUITE}.tar"
+    # shellcheck disable=SC2054 # commas are inside option values, not separators
     local opts=(--arch="${ARCH}" --variant=minbase
                 --components="${INGOT_COMPONENTS// /,}"
                 --include=ca-certificates,gnupg,apt-utils,locales,systemd-sysv,dbus)
