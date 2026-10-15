@@ -73,7 +73,7 @@ class ApprovalQueue:
             new.append(req)
         return new
 
-    def decide(self, request_id, allow, control_dir, uid_owner_of_dir=None):
+    def decide(self, request_id, allow, control_dir, uid_owner_of_dir=None, virtfs_root=False):
         req = self.pending.pop(request_id, None)
         if not req:
             raise KeyError("no such pending request")
@@ -83,6 +83,13 @@ class ApprovalQueue:
             json.dump({"allow": bool(allow), "decided": time.time(), "request_sha256": req["sha256"]}, f)
         if uid_owner_of_dir is not None:
             os.chown(tmp, uid_owner_of_dir, uid_owner_of_dir)
+        if virtfs_root:
+            # VM agents see this file through 9p (security_model=mapped-xattr):
+            # QEMU reports ownership from these xattrs, which the guest can
+            # neither see nor set. They mark the response as host-written (root);
+            # the guest runner refuses responses not owned by root.
+            for attr in ("user.virtfs.uid", "user.virtfs.gid"):
+                os.setxattr(tmp, attr, (0).to_bytes(4, "little"))
         os.chmod(tmp, 0o644)
         os.replace(tmp, os.path.join(resp_dir, f"{req['rid']}.json"))
         return req

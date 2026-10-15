@@ -53,10 +53,36 @@ def runtime():
             return json.load(f)
 
 
+def in_vm():
+    try:
+        with open("/proc/cmdline") as f:
+            return "iron.agent=1" in f.read().split()
+    except OSError:
+        return False
+
+
+# Container agents draw on Xvnc :1; VM agents on the VM's own screen, Xorg :0.
+DISPLAY = ":0" if in_vm() else ":1"
+XAUTH = "/run/iron-agent/xauth"
+
+
 def agent_env():
-    return {"HOME": HOME, "USER": "agent", "LOGNAME": "agent", "SHELL": "/bin/bash",
-            "PATH": f"{HOME}/.local/bin:{HOME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin",
-            "DISPLAY": ":1", "LANG": "C.UTF-8", "IRON_AGENT": "1"}
+    env = {"HOME": HOME, "USER": "agent", "LOGNAME": "agent", "SHELL": "/bin/bash",
+           "PATH": f"{HOME}/.local/bin:{HOME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin",
+           "DISPLAY": DISPLAY, "LANG": "C.UTF-8", "IRON_AGENT": "1"}
+    if os.path.exists(XAUTH):
+        env["XAUTHORITY"] = XAUTH
+    return env
+
+
+def wait_for_display(timeout=120):
+    sock = f"/tmp/.X11-unix/X{DISPLAY[1:]}"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.path.exists(sock):
+            return True
+        time.sleep(1)
+    return False
 
 
 def run_instruction(text):
@@ -69,6 +95,9 @@ def run_instruction(text):
     log = os.path.join(OUTBOX, "logs", f"task-{n:03d}.log")
     argv = [a.replace("{instruction}", text) for a in rt["instruction"]]
     write_status(state="working", summary=text[:200])
+    if not wait_for_display():
+        write_status(state="failed", summary=f"Task {n}: the agent desktop (display {DISPLAY}) did not start")
+        return
     script = (f"cd {shlex.quote(WORKSPACE)} && echo '# Iron Agent task {n}' && "
               f"{shlex.join(argv)} 2>&1 | tee {shlex.quote(log)}; "
               f"echo; echo '[task {n} finished - press Enter to close]'; read -r _")

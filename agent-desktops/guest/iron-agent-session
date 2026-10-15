@@ -1,21 +1,31 @@
 #!/bin/sh
 # Agent Desktop session (runs as the unprivileged `agent` user).
-# TigerVNC's Xvnc is both the X server and the VNC server; it listens only on a
-# Unix socket shared with the host (no TCP port), viewed from Iron Settings.
+#
+# Container agents: TigerVNC's Xvnc is both the X server and the VNC server; it
+# listens only on a Unix socket shared with the host (no TCP port).
+# VM agents (--on-display): the X server already runs on the VM's own screen,
+# which QEMU exports to the host as VNC; only the desktop is started here.
 set -eu
-SOCK=/run/iron-agent/display/vnc.sock
-GEOM="${IRON_AGENT_GEOMETRY:-1600x900}"
-rm -f "$SOCK"
-Xvnc :1 -geometry "$GEOM" -depth 24 -rfbport -1 -rfbunixpath "$SOCK" -rfbunixmode 0666 \
-    -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize -nolisten tcp -desktop "Iron Agent Desktop" &
-XPID=$!
-for _ in $(seq 1 50); do [ -S "$SOCK" ] && break; sleep 0.1; done
-export DISPLAY=:1
-xsetroot -solid '#0e1115' 2>/dev/null || true
-[ -f /usr/share/iron-agent/wallpaper.png ] && command -v xwallpaper >/dev/null && xwallpaper --zoom /usr/share/iron-agent/wallpaper.png || true
 mkdir -p "$HOME/outbox" "$HOME/workspace"
+if [ "${1:-}" = --on-display ]; then
+    : "${DISPLAY:?DISPLAY must be set}"
+    XPID=""
+else
+    SOCK=/run/iron-agent/display/vnc.sock
+    GEOM="${IRON_AGENT_GEOMETRY:-1600x900}"
+    rm -f "$SOCK"
+    Xvnc :1 -geometry "$GEOM" -depth 24 -rfbport -1 -rfbunixpath "$SOCK" -rfbunixmode 0666 \
+        -SecurityTypes None -AlwaysShared -AcceptSetDesktopSize -nolisten tcp -desktop "Iron Agent Desktop" &
+    XPID=$!
+    for _ in $(seq 1 50); do [ -S "$SOCK" ] && break; sleep 0.1; done
+    export DISPLAY=:1
+fi
+xsetroot -solid '#0e1115' 2>/dev/null || true
+xset s off -dpms 2>/dev/null || true
+[ -f /usr/share/iron-agent/wallpaper.png ] && command -v xwallpaper >/dev/null && xwallpaper --zoom /usr/share/iron-agent/wallpaper.png || true
 # openbox-session also starts XDG autostart entries (tint2 panel included).
 openbox-session &
+OBPID=$!
 sleep 1
 xterm -title "Agent shell" -geometry 120x32+40+40 -e bash -l &
-wait $XPID
+if [ -n "$XPID" ]; then wait "$XPID"; else wait "$OBPID"; fi

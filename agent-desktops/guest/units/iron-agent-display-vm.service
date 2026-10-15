@@ -1,0 +1,14 @@
+[Unit]
+Description=Iron Agent Desktop display on the VM screen (Xorg + Openbox)
+ConditionKernelCommandLine=iron.agent=1
+ConditionVirtualization=vm
+After=iron-agent-vm-setup.service systemd-udev-settle.service systemd-user-sessions.service
+Wants=iron-agent-vm-setup.service
+
+[Service]
+ExecStart=/usr/lib/iron-agent/iron-agent-display-vm
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

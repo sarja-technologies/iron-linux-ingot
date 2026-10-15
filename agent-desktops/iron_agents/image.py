@@ -20,7 +20,9 @@ GUEST_PACKAGES = [
     "python3", "git", "curl", "wget", "less", "nano", "unzip", "zstd", "jq", "ripgrep",
     "iproute2", "iputils-ping", "openssh-client", "xdg-utils", "xclip",
 ]
-VM_PACKAGES = ["linux-image-virtual", "initramfs-tools", "e2fsprogs"]
+# VM agents draw on their own virtual screen: a real X server instead of Xvnc.
+VM_PACKAGES = ["linux-image-virtual", "initramfs-tools", "e2fsprogs",
+               "xserver-xorg-core", "xserver-xorg-input-libinput", "xauth"]
 NODE_PACKAGES = ["nodejs", "npm"]
 GUEST_FILES = "/usr/share/iron-agents/guest"
 RUNTIMES = "/usr/share/iron-agents/runtimes"
@@ -102,7 +104,7 @@ def build(name="base", vm=False, runtimes=(), browser=False, mirror=None):
             if spec.get("install"):
                 chroot(root, *spec["install"])
         chroot(root, "systemctl", "enable", "iron-agent-display.service", "iron-agent-runner.service",
-               "iron-agent-vm-setup.service")
+               "iron-agent-vm-setup.service", *(["iron-agent-display-vm.service"] if vm else []))
         chroot(root, "systemctl", "mask", "systemd-networkd-wait-online.service", "getty@tty1.service")
         os.unlink(os.path.join(root, "usr/sbin/policy-rc.d"))
         chroot(root, "apt-get", "clean")
@@ -134,7 +136,7 @@ def _install_firefox(root):
 def _install_guest_files(root):
     g = GUEST_FILES
     os.makedirs(os.path.join(root, "usr/lib/iron-agent"), exist_ok=True)
-    for f in ("iron-agent-runner", "iron-agent-session", "iron-agent-vm-setup"):
+    for f in ("iron-agent-runner", "iron-agent-session", "iron-agent-vm-setup", "iron-agent-display-vm"):
         shutil.copy(os.path.join(g, f), os.path.join(root, "usr/lib/iron-agent", f))
     for f in ("iron-approve", "iron-elevate"):
         shutil.copy(os.path.join(g, f), os.path.join(root, "usr/bin", f))

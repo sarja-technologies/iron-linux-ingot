@@ -18,6 +18,7 @@ from .config import RUN_DIR, ConfigError
 
 VM_USER = "iron-agent-vm"
 QEMU_OVERHEAD_MIB = 384
+DISPLAY_SIZE = (1600, 900)
 
 
 def run_dir(agent):
@@ -75,11 +76,17 @@ def qemu_command(agent, disk, host):
     rd = run_dir(agent)
     kvm = host.kvm and os.access("/dev/kvm", os.R_OK)
     arch = os.uname().machine
+    # The guest's Xorg draws on this virtual GPU; QEMU exports it as VNC. A USB
+    # tablet gives absolute pointer positions, so the host viewer's pointer
+    # lines up with the guest's.
+    xres, yres = DISPLAY_SIZE
     if arch == "x86_64":
-        cmd = ["qemu-system-x86_64", "-machine", "q35", "-device", "virtio-vga"]
+        cmd = ["qemu-system-x86_64", "-machine", "q35", "-device", f"virtio-vga,xres={xres},yres={yres}",
+               "-device", "qemu-xhci", "-device", "usb-tablet"]
         console = "ttyS0"
     else:
-        cmd = ["qemu-system-aarch64", "-machine", "virt,gic-version=max", "-device", "virtio-gpu-pci",
+        cmd = ["qemu-system-aarch64", "-machine", "virt,gic-version=max",
+               "-device", f"virtio-gpu-pci,xres={xres},yres={yres}",
                "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet"]
         console = "ttyAMA0"
     cmd += ["-accel", "kvm", "-cpu", "host"] if kvm else ["-accel", "tcg,thread=multi", "-cpu", "max"]
@@ -215,6 +222,21 @@ def restore(store, agent, name):
             raise ConfigError(out.strip())
     else:
         storage.run(["qemu-img", "snapshot", "-a", name, store.path(agent.id, "disk.qcow2")])
+
+
+def share_display(agent):
+    """QEMU (running as iron-agent-vm) creates the VNC socket; let the agent's
+    owner connect to it — and nobody else (its parent dirs are owner-only)."""
+    sock = os.path.join(run_dir(agent), "display", "vnc.sock")
+    try:
+        st = os.stat(sock)
+    except FileNotFoundError:
+        return False
+    owner_gid = pwd.getpwuid(agent.owner_uid).pw_gid
+    if st.st_gid != owner_gid or (st.st_mode & 0o070) != 0o060:
+        os.chown(sock, -1, owner_gid)
+        os.chmod(sock, 0o660)
+    return True
 
 
 def guest_console_log(agent):

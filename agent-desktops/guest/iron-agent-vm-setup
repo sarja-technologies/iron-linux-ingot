@@ -1,7 +1,9 @@
 #!/bin/sh
-# VM agents: mount the host control share, expose display dir, grow the root fs.
+# VM agents: mount the host control share and grow the root fs. (No
+# /run/iron-agent/display here: that directory is how container agents get
+# their Xvnc socket; VMs show their own screen through QEMU instead.)
 set -eu
-mkdir -p /run/iron-agent/control /run/iron-agent/display
+mkdir -p /run/iron-agent/control
 mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144 ironctl /run/iron-agent/control
 mkdir -p /run/iron-agent/control/outbox
 chown agent:agent /run/iron-agent/control/outbox

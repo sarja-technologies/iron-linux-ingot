@@ -17,7 +17,7 @@ install:
 	install -Dm644 data/agent-desktops.conf $(DESTDIR)/etc/iron/agent-desktops.conf
 	install -d $(DESTDIR)/usr/share/iron-agents/runtimes $(DESTDIR)/usr/share/iron-agents/guest/units
 	install -m644 runtimes/*.json $(DESTDIR)/usr/share/iron-agents/runtimes/
-	install -m755 guest/iron-agent-runner guest/iron-agent-session guest/iron-agent-vm-setup guest/iron-approve guest/iron-elevate \
+	install -m755 guest/iron-agent-runner guest/iron-agent-session guest/iron-agent-vm-setup guest/iron-agent-display-vm guest/iron-approve guest/iron-elevate \
 		$(DESTDIR)/usr/share/iron-agents/guest/
 	install -m644 guest/claude-managed-settings.json $(DESTDIR)/usr/share/iron-agents/guest/
 	install -m644 guest/units/*.service $(DESTDIR)/usr/share/iron-agents/guest/units/
