@@ -1,0 +1,1 @@
+{"uuid": "iron-test@ironlinux.org", "name": "Iron test harness", "description": "Test-only: enables unsafe mode so org.gnome.Shell.Eval works in the headless test shell. Never shipped.", "shell-version": ["49", "50"]}
