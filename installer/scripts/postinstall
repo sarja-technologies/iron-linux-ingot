@@ -6,7 +6,7 @@ set -u
 log() { echo "iron-postinstall: $*"; }
 choice() { cat "/var/lib/iron-installer/$1" 2>/dev/null || echo "$2"; }
 EDITION=$(choice edition full)
-AGENTS=$(choice agents off)
+AGENTS=$(choice agents disable)
 DRIVERS=$(choice drivers auto)
 log "edition=$EDITION agents=$AGENTS drivers=$DRIVERS"
 export DEBIAN_FRONTEND=noninteractive
@@ -24,7 +24,7 @@ rm -f /etc/casper.conf
 if [ "$EDITION" = lite ]; then
     apt-mark manual ingot-desktop-lite >/dev/null
     # Keep Agent Desktops (already on the medium) if the user enabled them.
-    [ "$AGENTS" = on ] && apt-mark manual iron-agent-desktops virt-viewer >/dev/null
+    [ "$AGENTS" = enable ] && apt-mark manual iron-agent-desktops virt-viewer >/dev/null
     apt-get purge -y ingot-desktop gnome-software gnome-software-plugin-flatpak \
         flatpak cups cups-browsed gnome-calculator gnome-system-monitor file-roller baobab \
         system-config-printer 2>/dev/null || true
@@ -33,7 +33,7 @@ apt-get autoremove --purge -y
 
 # 3. Agent Desktops: off unless chosen (the service is on-demand either way).
 if [ -f /etc/iron/agent-desktops.conf ]; then
-    v=false; [ "$AGENTS" = on ] && v=true
+    v=false; [ "$AGENTS" = enable ] && v=true
     sed -i "s/^\s*enabled\s*=.*/enabled = $v/" /etc/iron/agent-desktops.conf
 fi
 

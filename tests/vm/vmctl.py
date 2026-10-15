@@ -117,9 +117,9 @@ SHIFTED = {"_": "minus", ":": "semicolon", "|": "backslash", '"': "apostrophe", 
            "+": "equal", "?": "slash", "#": "3", "%": "5", "^": "6", "{": "bracket_left", "}": "bracket_right"}
 
 
-def send_keys(q, keys, hold=60):
+def send_keys(q, keys, hold=90):
     q.cmd("send-key", keys=[{"type": "qcode", "data": k} for k in keys], **{"hold-time": hold})
-    time.sleep(0.06)
+    time.sleep(0.14)  # faster typing drops keys in Qt/GTK under QEMU
 
 
 def type_text(q, text):
@@ -146,19 +146,23 @@ def click(q, x, y, w, h, button="left", double=False):
 
 
 def serial_run(name, cmd, timeout):
-    wd = d(name)
-    log = os.path.join(wd, "serial.log")
-    start_size = os.path.getsize(log) if os.path.exists(log) else 0
+    """Run a command on the logged-in serial shell, reading the reply from the socket
+    (QEMU's chardev logfile can lag behind)."""
     marker = f"__VMCTL_{int(time.time() * 1000)}__"
     s = socket.socket(socket.AF_UNIX)
-    s.connect(os.path.join(wd, "serial.sock"))
+    s.connect(os.path.join(d(name), "serial.sock"))
+    s.settimeout(0.5)
     s.sendall(f"{cmd}; echo {marker} $?\n".encode())
+    buf = b""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        time.sleep(0.5)
-        with open(log, "rb") as f:
-            f.seek(start_size)
-            data = f.read().decode("utf-8", "replace")
+        try:
+            chunk = s.recv(65536)
+            if chunk:
+                buf += chunk
+        except socket.timeout:
+            pass
+        data = buf.decode("utf-8", "replace")
         m = re.search(rf"{marker} (\d+)", data)
         if m:
             s.close()
@@ -168,6 +172,7 @@ def serial_run(name, cmd, timeout):
             print(out.strip())
             return int(m.group(1))
     s.close()
+    print(buf.decode("utf-8", "replace")[-3000:])
     raise SystemExit(f"timeout after {timeout}s")
 
 
