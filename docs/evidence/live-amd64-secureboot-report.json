@@ -1,0 +1,124 @@
+{
+  "scenario": "live-amd64-sb",
+  "iso": "/home/dembele/Documents/Iron-Linux/iron-linux-ingot/out/iron-ingot-26.10-dev-amd64-full.iso",
+  "started": "2026-10-15T11:04:17Z",
+  "checks": {
+    "kernel started": {
+      "pass": true,
+      "detail": ""
+    },
+    "serial login prompt": {
+      "pass": true,
+      "detail": ""
+    },
+    "systemd running (no failed units)": {
+      "pass": true,
+      "detail": "state=running failed=[]"
+    },
+    "os-release is Iron Linux": {
+      "pass": true,
+      "detail": "PRETTY_NAME=\"Iron Linux Ingot 26.10\"\nNAME=\"Iron Linux\"\nVERSION_ID=\"26.10\"\nVERSION=\"26.10 (Ingot)\"\nVERSION_CODENAME=resolute\nID=iron\nID_LIKE=\"ubuntu debian\"\nVARIANT=\"Ingot\"\nVARIANT_ID=ingot\nHOME_URL=\"https://github.com/crossainthero-lab/iron-linux-ingot\"\nSUPPORT_URL=\"https://github.com/crossainthero-lab/iron-linux-ingot/issues\"\nBUG_REPORT_URL=\"https://github.com/crossainthero-lab/iron-linux-ingot/issues\"\nLOGO=iron-logo\nUBUNTU_CODENAME=resolute\n"
+    },
+    "GNOME Wayland session for live user": {
+      "pass": true,
+      "detail": "Name=iron\nType=wayland\nClass=user\nState=active\n\nName=iron\nType=unspecified\nClass=manager\nState=active\n\nName=iron\nType=tty\nClass=user\nState=active\n"
+    },
+    "gnome-shell running": {
+      "pass": true,
+      "detail": "1343 /usr/bin/gnome-shell --mode=user\n1501 /usr/libexec/gnome-shell-calendar-server\n"
+    },
+    "extension active: iron-shell@ironlinux.org": {
+      "pass": true,
+      "detail": "  State: ACTIVE\n"
+    },
+    "extension active: iron-tiling@ironlinux.org": {
+      "pass": true,
+      "detail": "  State: ACTIVE\n"
+    },
+    "extension active: ubuntu-dock@ubuntu.com": {
+      "pass": true,
+      "detail": "  State: ACTIVE\n"
+    },
+    "no desktop-cube extension": {
+      "pass": true,
+      "detail": "0\n"
+    },
+    "Ingot wallpaper default": {
+      "pass": true,
+      "detail": "'file:///usr/share/backgrounds/iron/ingot-dawn.jpg'\n"
+    },
+    "zram swap active": {
+      "pass": true,
+      "detail": "/dev/zram0 partition 1.9G\n"
+    },
+    "snapd absent": {
+      "pass": true,
+      "detail": "0\nnone\n"
+    },
+    "firefox is a native .deb from Mozilla": {
+      "pass": true,
+      "detail": "158.0~build2 | Mozilla <release@mozilla.com>\nURIs: https://packages.mozilla.org/apt\n"
+    },
+    "hardware profile detected": {
+      "pass": true,
+      "detail": ""
+    },
+    "Secure Boot enabled in guest": {
+      "pass": true,
+      "detail": "SecureBoot enabled\n"
+    }
+  },
+  "facts": {
+    "kernel_seconds": 15.8,
+    "login_prompt_seconds": 88.9,
+    "system_state": "running",
+    "system_ready_seconds": 93.9,
+    "failed_units": [],
+    "kernel": "7.0.0-38-generic x86_64",
+    "xwayland": "not started (on demand)",
+    "enabled_extensions": [
+      "iron-shell@ironlinux.org",
+      "iron-tiling@ironlinux.org",
+      "ubuntu-appindicators@ubuntu.com",
+      "ubuntu-dock@ubuntu.com"
+    ],
+    "firefox_policy": "firefox:\n  Installed: 158.0~build2\n  Candidate: 158.0~build2\n  Version table:\n",
+    "hardware": {
+      "arch": "x86_64",
+      "cpu": {
+        "vendor": "intel",
+        "model": "11th Gen Intel(R) Core(TM) i9-11900F @ 2.50GHz",
+        "threads": 4
+      },
+      "memory": {
+        "total_mib": 3824
+      },
+      "gpus": [
+        {
+          "card": "card1",
+          "driver": "virtio-pci",
+          "vendor": "virtio",
+          "pci_id": "0x1af4:0x1050",
+          "boot_vga": true,
+          "software_only": false
+        }
+      ],
+      "render_nodes": [
+        "renderD128"
+      ],
+      "gpu_acceleration": true,
+      "nvidia": false,
+      "virtualization": "kvm",
+      "laptop": false,
+      "kvm": true,
+      "cgroup_v2": true,
+      "raspberry_pi": false,
+      "tier": "low"
+    },
+    "used_memory_mib_after_login": "891",
+    "secureboot": "SecureBoot enabled",
+    "journal_errors_tail": "Oct 15 11:05:40 iron-ingot gdm-autologin][1156]: gkr-pam: couldn't unlock the login keyring.\n",
+    "total_seconds": 115.0
+  },
+  "result": "pass"
+}

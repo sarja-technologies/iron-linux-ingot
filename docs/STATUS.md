@@ -16,9 +16,9 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 | Signed local Ingot APT repo, per-build versions | Validated | builds |
 | amd64 ISO (UEFI shim→signed GRUB, BIOS hybrid) | Validated (UEFI under OVMF) | `results/live-amd64/report.json` — 17/17 checks |
 | amd64 BIOS boot path | Implemented | ISO structure only |
-| Secure Boot boot with Microsoft keys enrolled | Implemented, **not yet run** | `test_live_boot.py --secureboot` exists |
-| arm64 UEFI ISO | Built; boot test: see "ARM64" below | |
-| Raspberry Pi 4/5 image | see "Raspberry Pi" below | |
+| Secure Boot boot with Microsoft keys enrolled (OVMF secboot + MS vars) | Validated — guest reports Secure Boot enabled | `results/live-amd64-sb/report.json` 18/18 |
+| arm64 UEFI ISO | Validated in emulation (see "ARM64") | `results/live-arm64-manual/` |
+| Raspberry Pi 4/5 image | Built, **not booted** (see "Raspberry Pi") | `out/*rpi*.img.xz` |
 | `INGOT_SNAPSHOT` reproducible pinning | Implemented, not exercised | |
 
 ## Desktop
@@ -30,7 +30,7 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 | Ingot GDM theme (gresource alternative) + wordmark | Validated | `results/install-amd64/step-23-gdm.png` |
 | Ingot wallpapers / defaults (dark, Inter, dock bottom intellihide) | Validated | live report, screenshots |
 | No desktop cube, no third-party extensions | Validated | live report |
-| Plymouth Ingot theme | Implemented; installed as default; **text LUKS prompt seen in VM** (likely early-KMS timing in QEMU) | install VM |
+| Plymouth Ingot theme | Validated at live shutdown; **text-mode LUKS prompt seen at installed boot in VM** (likely early-KMS timing in QEMU) | install VMs |
 | Terminal palette | Gap: Ptyxis keeps Ubuntu's purple palette | screenshot |
 | GNOME opens the overview at login (dock `disable-overview-on-startup` not effective) | Gap | screenshots |
 
@@ -54,9 +54,12 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 | Guided erase-disk install, UEFI, GPT, LUKS2 root + /boot | Validated (amd64 VM, encrypted) | unlock prompt → GDM → login |
 | Users, hostname template, sudo | Validated | |
 | Live packages removed after install | Validated | `dpkg -l casper calamares` empty |
-| Edition (full/lite) choice | Full validated; **Lite path not exercised** | |
-| Agent Desktops opt-in in installer | **Bug found and fixed** (YAML `on`/`off` ids); fix not yet re-run in a fresh install | commit "Installer: avoid YAML boolean ids" |
-| Drivers option (ubuntu-drivers) | Ran in VM (no extra drivers needed); NVIDIA path not exercised | |
+| Edition: Full | Validated | install 1 |
+| Edition: Lite | **Bug found** in a second real install: the Lite package removal failed silently inside Calamares' chroot (no /dev/pts, errors were suppressed). Script fixed (devpts, no pty, logged, per-package fallback); **fix not yet re-validated** | `results/install2/` |
+| Agent Desktops opt-in in installer | Validated after fix (`enabled = true` in the installed Lite system) | install 2 |
+| Drivers option: open-only and recommended | Both ran in VM installs; NVIDIA path not exercised | |
+| Clean reboot from the live session (Ingot Plymouth splash, "remove the medium") | Validated | `results/install2/s8.png` |
+| Calamares "not connected to the Internet" warning | Gap: shown although networking works (connectivity URL check) | |
 | Manual partitioning, dual boot | Implemented (Calamares), not exercised | |
 | Updates: Ubuntu archives, unattended security updates, GNOME Software | Implemented (standard Ubuntu mechanisms) | |
 | **Hosted Ingot APT repository** | **Planned** — installed systems do not yet receive Ingot package updates | |
@@ -87,7 +90,7 @@ Validated inside an installed Ingot VM (amd64, nested KVM):
 | Iron Settings Agent Desktops page / panel indicator against a live daemon | Implemented; page rendered without daemon only |
 | Claude Code / Codex runtimes, managed approval hook | Implemented; **not exercised** (needs accounts) |
 | VM agents: boot own kernel, cgroup cap (RAM+384 MiB), QEMU as unprivileged user, console preview, 9p control channel | Validated |
-| VM agents: visible agent desktop + instruction execution | **Experimental — not working yet** (the in-guest Xvnc session is not what QEMU displays) |
+| VM agents: visible agent desktop + instruction execution | **Experimental — not working yet** (the in-guest Xvnc session is not what QEMU displays; the runner now reports such tasks as failed instead of done) |
 | VM shared folders, VM GPU | Planned |
 
 Bugs found and fixed during validation are listed in the git history
@@ -95,13 +98,22 @@ Bugs found and fixed during validation are listed in the git history
 
 ## ARM64
 
-_Filled in from `results/live-arm64/report.json` — see the end of this file._
+Validated in QEMU `virt` with AAVMF UEFI firmware under TCG emulation
+(Neoverse-N1 CPU model; `-cpu max` makes the firmware crawl):
+UEFI → shim → signed GRUB → kernel 7.0.0-38-generic aarch64 → live GNOME
+Wayland desktop in ~270 s; systemd running with no failed units; Iron Shell,
+Iron Tiling and Ubuntu Dock ACTIVE; zram; native arm64 Firefox from Mozilla;
+no snapd. Evidence: `results/live-arm64-manual/`. **Not done on arm64**:
+installation to disk, Agent Desktops, real ARM64 hardware, KVM on ARM64.
+The automated harness could not select GRUB's serial entry on arm64; the
+manual procedure is recorded in the evidence file.
 
 ## Raspberry Pi
 
-Image build via `build/ingot-build --arch arm64 rpi`. **No boot test**: QEMU
-cannot emulate a Pi 4/5 with display, and no hardware was available. See
-`docs/HARDWARE.md`.
+`out/iron-ingot-26.10-dev-rpi-arm64-full.img.xz` (1.8 GB) built with
+`linux-raspi`, Pi firmware, direct-boot `config.txt` ([pi4]/[pi5]),
+first-boot root growth and GNOME Initial Setup. **Never booted**: QEMU cannot
+emulate a Pi 4/5 with display and no hardware was available.
 
 ## Gnotch
 
@@ -125,3 +137,11 @@ Measured in a 4-vCPU / 4 GiB KVM guest (software rendering, virtio-vga): live
 session reaches a running GNOME desktop with **885 MiB used**; boot to login
 prompt 88 s including the live-media integrity check. **No baseline Ubuntu
 comparison has been run yet**, so no "faster/lighter than Ubuntu" claim is made.
+
+## Known gaps found during validation (not yet fixed)
+
+* iron-hwprofile treats virtio-gpu without virgl as GPU-accelerated.
+* Ptyxis uses Ubuntu's purple palette; GNOME opens the overview at login.
+* The Calamares connectivity warning appears although the network works.
+* The installer writes an Arch-style `cryptdevice=` kernel parameter (harmless:
+  Ubuntu unlocks via crypttab).

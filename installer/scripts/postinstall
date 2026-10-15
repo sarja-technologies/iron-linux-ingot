@@ -3,7 +3,13 @@
 # Applies the Ingot choices recorded by contextualprocess@choices and removes
 # live-session-only software.
 set -u
+mkdir -p /var/log/installer
+LOG=/var/log/installer/iron-postinstall.log
+exec >>"$LOG" 2>&1
 log() { echo "iron-postinstall: $*"; }
+# Calamares' chroot has no /dev/pts; apt/dpkg want one for their logs.
+mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts 2>/dev/null || true
+APT="apt-get -y -o Dpkg::Use-Pty=0"
 choice() { cat "/var/lib/iron-installer/$1" 2>/dev/null || echo "$2"; }
 EDITION=$(choice edition full)
 AGENTS=$(choice agents disable)
@@ -16,7 +22,7 @@ if [ -r /cdrom/casper/filesystem.manifest-remove ]; then
     remove=$(grep -v '^#' /cdrom/casper/filesystem.manifest-remove | while read -r p; do
         dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "ok installed" && echo "$p"; done)
     # shellcheck disable=SC2086 # intentional word splitting of the package list
-    [ -n "$remove" ] && apt-get purge -y $remove
+    [ -n "$remove" ] && $APT purge $remove
 fi
 rm -f /etc/casper.conf
 
@@ -25,11 +31,15 @@ if [ "$EDITION" = lite ]; then
     apt-mark manual ingot-desktop-lite >/dev/null
     # Keep Agent Desktops (already on the medium) if the user enabled them.
     [ "$AGENTS" = enable ] && apt-mark manual iron-agent-desktops tigervnc-viewer >/dev/null
-    apt-get purge -y ingot-desktop gnome-software gnome-software-plugin-flatpak \
-        flatpak cups cups-browsed gnome-calculator gnome-system-monitor file-roller baobab \
-        system-config-printer 2>/dev/null || true
+    LITE_REMOVE="ingot-desktop gnome-software gnome-software-plugin-flatpak flatpak cups cups-browsed
+        gnome-calculator gnome-system-monitor file-roller baobab"
+    # shellcheck disable=SC2086 # package list
+    if ! $APT purge $LITE_REMOVE; then
+        log "batch removal failed; removing Lite extras one by one"
+        for p in $LITE_REMOVE; do $APT purge "$p" || log "could not remove $p"; done
+    fi
 fi
-apt-get autoremove --purge -y
+$APT autoremove --purge
 
 # 3. Agent Desktops: off unless chosen (the service is on-demand either way).
 if [ -f /etc/iron/agent-desktops.conf ]; then

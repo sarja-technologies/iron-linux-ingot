@@ -66,7 +66,7 @@ class VM:
                      "-device", "ide-cd,drive=cd0,bootindex=1"] if self.iso else []
         else:
             accel = ["-accel", "kvm", "-cpu", "host"] if os.uname().machine == "aarch64" \
-                else ["-accel", "tcg,thread=multi", "-cpu", "max,pauth-impdef=on"]
+                else ["-accel", "tcg,thread=multi", "-cpu", "neoverse-n1"]  # "max" makes AAVMF crawl under TCG
             cmd = ["qemu-system-aarch64", "-machine", "virt,gic-version=3"] + accel
             cmd += ["-device", "virtio-gpu-pci", "-device", "qemu-xhci",
                     "-device", "usb-kbd", "-device", "usb-tablet"]

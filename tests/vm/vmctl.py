@@ -78,7 +78,8 @@ def start(a):
     else:
         tcg = os.uname().machine != "aarch64"
         cmd = ["qemu-system-aarch64", "-machine", "virt,gic-version=3",
-               *(["-accel", "tcg,thread=multi", "-cpu", "max,pauth-impdef=on"] if tcg else ["-accel", "kvm", "-cpu", "host"]),
+               # "-cpu max" makes AAVMF crawl under TCG; Neoverse-N1 (ARMv8.2) is enough for Ubuntu.
+               *(["-accel", "tcg,thread=multi", "-cpu", "neoverse-n1"] if tcg else ["-accel", "kvm", "-cpu", "host"]),
                "-device", "virtio-gpu-pci", "-device", "qemu-xhci", "-device", "usb-kbd"]
         if a.iso:
             cmd += ["-device", "virtio-scsi-pci,id=scsi0", "-drive", f"file={a.iso},media=cdrom,if=none,id=cd0,readonly=on",

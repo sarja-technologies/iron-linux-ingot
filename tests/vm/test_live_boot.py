@@ -50,6 +50,7 @@ def main():
         deadline = time.time() + (600 if slow else 60)
         while time.time() < deadline:
             time.sleep(2)
+            vm.serial_text()  # keep draining serial: a full socket buffer stalls the guest
             vm.screendump(grub_png)
             if screen_has_menu(grub_png):
                 break
