@@ -1,0 +1,13 @@
+/.work/
+/out/
+__pycache__/
+*.pyc
+/tests/vm/results/
+/debian/.debhelper/
+/debian/files
+/debian/*.substvars
+/debian/debhelper-build-stamp
+/debian/*/
+!/debian/source/
+/debian/tmp/
+/build-area/

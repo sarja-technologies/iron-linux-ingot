@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="iron-shell">
+  <schema id="org.ironlinux.tiling" path="/org/ironlinux/tiling/">
+    <key name="enabled" type="b">
+      <default>true</default>
+      <summary>Enable drag-to-snap zones and edge snapping</summary>
+    </key>
+    <key name="default-layout" type="s">
+      <choices><choice value="none"/><choice value="columns-2"/><choice value="columns-3"/><choice value="grid-2x2"/><choice value="grid-3x3"/></choices>
+      <default>'none'</default>
+      <summary>Layout applied to workspaces without an explicit layout</summary>
+    </key>
+    <key name="snap-layout" type="s">
+      <choices><choice value="columns-2"/><choice value="columns-3"/><choice value="grid-2x2"/><choice value="grid-3x3"/></choices>
+      <default>'grid-2x2'</default>
+      <summary>Zones shown when dragging with the snap modifier on a floating workspace</summary>
+    </key>
+    <key name="workspace-layouts" type="s">
+      <default>'{}'</default>
+      <summary>Per workspace:monitor layout and tile ratios (JSON, managed by the extension)</summary>
+    </key>
+    <key name="inner-gap" type="i">
+      <range min="0" max="64"/>
+      <default>8</default>
+      <summary>Gap between tiles in pixels</summary>
+    </key>
+    <key name="outer-gap" type="i">
+      <range min="0" max="128"/>
+      <default>8</default>
+      <summary>Margin between tiles and the screen edge in pixels</summary>
+    </key>
+    <key name="edge-snap" type="b">
+      <default>true</default>
+      <summary>Snap windows dragged to screen edges and corners</summary>
+    </key>
+    <key name="snap-modifier" type="s">
+      <choices><choice value="ctrl"/><choice value="alt"/><choice value="shift"/><choice value="super"/></choices>
+      <default>'ctrl'</default>
+      <summary>Hold while dragging a window to show the snap zones</summary>
+    </key>
+    <key name="layout-none" type="as"><default><![CDATA[['<Super><Alt>0']]]></default><summary>Turn tiling off for the current workspace</summary></key>
+    <key name="layout-columns-2" type="as"><default><![CDATA[['<Super><Alt>1']]]></default><summary>Two-column layout</summary></key>
+    <key name="layout-columns-3" type="as"><default><![CDATA[['<Super><Alt>2']]]></default><summary>Three-column layout</summary></key>
+    <key name="layout-grid-2x2" type="as"><default><![CDATA[['<Super><Alt>3']]]></default><summary>2×2 grid layout</summary></key>
+    <key name="layout-grid-3x3" type="as"><default><![CDATA[['<Super><Alt>4']]]></default><summary>3×3 grid layout</summary></key>
+    <key name="cycle-layout" type="as"><default><![CDATA[['<Super><Alt>space']]]></default><summary>Cycle layouts on the current workspace</summary></key>
+    <key name="swap-left" type="as"><default><![CDATA[['<Super><Alt>Left']]]></default><summary>Swap focused window with the tile on the left</summary></key>
+    <key name="swap-right" type="as"><default><![CDATA[['<Super><Alt>Right']]]></default><summary>Swap focused window with the tile on the right</summary></key>
+    <key name="swap-up" type="as"><default><![CDATA[['<Super><Alt>Up']]]></default><summary>Swap focused window with the tile above</summary></key>
+    <key name="swap-down" type="as"><default><![CDATA[['<Super><Alt>Down']]]></default><summary>Swap focused window with the tile below</summary></key>
+    <key name="toggle-float" type="as"><default><![CDATA[['<Super><Alt>f']]]></default><summary>Float or re-tile the focused window</summary></key>
+  </schema>
+</schemalist>

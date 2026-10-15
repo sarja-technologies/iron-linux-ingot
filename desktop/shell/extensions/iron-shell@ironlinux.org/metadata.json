@@ -1,0 +1,9 @@
+{
+  "uuid": "iron-shell@ironlinux.org",
+  "name": "Iron Shell",
+  "description": "Iron Linux Ingot panel identity, lock-screen styling and the Agent Desktops indicator.",
+  "shell-version": ["49", "50"],
+  "session-modes": ["user", "unlock-dialog"],
+  "url": "https://github.com/crossainthero-lab/iron-linux-ingot",
+  "version": 1
+}

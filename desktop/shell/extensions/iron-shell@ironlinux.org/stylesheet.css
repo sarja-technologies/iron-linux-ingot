@@ -1,0 +1,41 @@
+/* Iron Shell - Ingot panel identity.
+   Tokens: graphite #0e1115, iron #20262d, steel #c9d1d9, cobalt #3d7be0, forge #f29a46 */
+
+#panel.iron-panel {
+  background-color: rgba(14, 17, 21, 0.86);
+  border-bottom: 1px solid rgba(201, 209, 217, 0.07);
+  font-weight: 600;
+  height: 32px;
+}
+#panel.iron-panel.unlock-screen,
+#panel.iron-panel.login-screen { background-color: transparent; border: none; }
+
+#panel.iron-panel .panel-button {
+  border-radius: 9px;
+  margin: 3px 1px;
+  padding: 0 10px;
+  color: #e6ebf0;
+  transition-duration: 120ms;
+}
+#panel.iron-panel .panel-button:hover { background-color: rgba(201, 209, 217, 0.10); }
+#panel.iron-panel .panel-button:active,
+#panel.iron-panel .panel-button:checked,
+#panel.iron-panel .panel-button:focus { background-color: rgba(61, 123, 224, 0.28); }
+
+.iron-panel-logo { icon-size: 16px; color: #c9d1d9; margin-right: 8px; }
+
+/* Activities workspace dots in Ingot cobalt. */
+#panel.iron-panel .workspace-dot { background-color: rgba(201, 209, 217, 0.55); }
+#panel.iron-panel .workspace-dot:active { background-color: #8fb2ea; }
+
+.iron-agent-count { margin-left: 4px; font-feature-settings: "tnum"; }
+.iron-agent-indicator.iron-agent-attention .system-status-icon { color: #f29a46; }
+
+/* Popovers and quick settings: graphite cards, cobalt accents. */
+.popup-menu-boxpointer .popup-menu-content,
+.quick-settings { background-color: rgba(20, 24, 29, 0.97); border: 1px solid rgba(201, 209, 217, 0.08); border-radius: 18px; }
+.quick-toggle:checked { background-color: #3d7be0; color: #ffffff; }
+
+/* Lock screen (unlock-dialog session mode). */
+.unlock-dialog-clock .unlock-dialog-clock-time { font-weight: 300; }
+.unlock-dialog StEntry { border-radius: 12px; background-color: rgba(14, 17, 21, 0.55); }

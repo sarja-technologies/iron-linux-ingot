@@ -1,0 +1,49 @@
+#!/bin/bash
+# Iron Linux Ingot image builder.
+#
+# Usage: sudo build/ingot-build [--arch amd64|arm64] [--profile full|lite] [stages...]
+#
+# Stages (default: all, in order):
+#   bootstrap   debootstrap a minimal Ubuntu base
+#   packages    build Ingot .debs and the local signed APT repo
+#   system      install kernel, desktop, drivers, Ingot packages into the rootfs
+#   live        produce the live/installer ISO (UEFI; amd64 also BIOS)
+#   rpi         produce a Raspberry Pi 4/5 raw disk image (arm64 only)
+#
+# Environment: INGOT_WORKDIR, INGOT_SNAPSHOT, INGOT_MIRROR_AMD64/ARM64 (see build/config/common.conf)
+
+ARCH="amd64"
+PROFILE="full"
+STAGES=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --arch) ARCH="$2"; shift 2 ;;
+        --profile) PROFILE="$2"; shift 2 ;;
+        -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -*) echo "unknown option $1" >&2; exit 2 ;;
+        *) STAGES+=("$1"); shift ;;
+    esac
+done
+export ARCH PROFILE
+[[ "${PROFILE}" == full || "${PROFILE}" == lite ]] || { echo "profile must be full or lite" >&2; exit 2; }
+
+# shellcheck source=build/lib/common.sh
+. "$(dirname "$(readlink -f "$0")")/lib/common.sh"
+for s in "${INGOT_ROOT}"/build/stages/*.sh; do
+    # shellcheck source=/dev/null
+    . "${s}"
+done
+
+require_root
+arch_setup
+trap chroot_umount EXIT INT TERM
+
+[[ ${#STAGES[@]} -eq 0 ]] && STAGES=(bootstrap packages system live)
+[[ ${#STAGES[@]} -eq 4 && "${ARCH}" == arm64 && "${INGOT_RPI:-0}" == 1 ]] && STAGES+=(rpi)
+
+START=$(date +%s)
+for st in "${STAGES[@]}"; do
+    log "=== stage: ${st} ==="
+    "stage_${st}"
+done
+log "done in $(( $(date +%s) - START ))s"

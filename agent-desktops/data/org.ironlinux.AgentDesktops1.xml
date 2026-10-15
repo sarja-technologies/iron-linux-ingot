@@ -1,0 +1,62 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!-- Iron Agent Desktops system service. All structured values are JSON strings
+     so the interface stays stable while the schema grows. Every method is
+     authorised through polkit (org.ironlinux.agentdesktops.*). -->
+<node>
+  <interface name="org.ironlinux.AgentDesktops1">
+    <method name="GetStatus"><arg type="s" name="status_json" direction="out"/></method>
+    <method name="SetEnabled"><arg type="b" name="enabled" direction="in"/></method>
+    <method name="ListAgents"><arg type="s" name="agents_json" direction="out"/></method>
+    <method name="GetAgent">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="agent_json" direction="out"/>
+    </method>
+    <method name="CreateAgent">
+      <arg type="s" name="config_json" direction="in"/><arg type="s" name="id" direction="out"/>
+    </method>
+    <method name="UpdateAgent">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="config_json" direction="in"/>
+    </method>
+    <method name="DeleteAgent"><arg type="s" name="id" direction="in"/></method>
+    <method name="Start"><arg type="s" name="id" direction="in"/></method>
+    <method name="Pause"><arg type="s" name="id" direction="in"/></method>
+    <method name="Resume"><arg type="s" name="id" direction="in"/></method>
+    <method name="Stop"><arg type="s" name="id" direction="in"/></method>
+    <method name="SendInstruction">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="text" direction="in"/>
+    </method>
+    <method name="GetDisplay">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="display_json" direction="out"/>
+    </method>
+    <method name="GetPreview">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="png_path" direction="out"/>
+    </method>
+    <method name="GrantShare">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="host_path" direction="in"/>
+      <arg type="b" name="writable" direction="in"/>
+    </method>
+    <method name="RevokeShare">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="host_path" direction="in"/>
+    </method>
+    <method name="ListOutputs">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="files_json" direction="out"/>
+    </method>
+    <method name="ExportOutput">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="relative_path" direction="in"/>
+      <arg type="s" name="host_dest_dir" direction="in"/><arg type="s" name="exported_path" direction="out"/>
+    </method>
+    <method name="ListApprovals"><arg type="s" name="approvals_json" direction="out"/></method>
+    <method name="Decide">
+      <arg type="s" name="request_id" direction="in"/><arg type="b" name="allow" direction="in"/>
+    </method>
+    <method name="CreateSnapshot">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="name" direction="in"/>
+    </method>
+    <method name="RestoreSnapshot">
+      <arg type="s" name="id" direction="in"/><arg type="s" name="name" direction="in"/>
+    </method>
+    <signal name="AgentChanged"><arg type="s" name="id"/><arg type="s" name="state"/></signal>
+    <signal name="ApprovalRequested"><arg type="s" name="request_json"/></signal>
+    <signal name="AgentFinished"><arg type="s" name="id"/><arg type="s" name="summary"/></signal>
+  </interface>
+</node>
