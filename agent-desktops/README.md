@@ -34,7 +34,7 @@ iron-agent share a1b2c3d4e5 ~/Projects/site --writable        # applies at next 
 iron-agent send a1b2c3d4e5 "run the test suite and fix failures"
 iron-agent approvals ; iron-agent approve <request-id>
 iron-agent outputs a1b2c3d4e5 ; iron-agent export a1b2c3d4e5 logs/task-001.log ~/Downloads
-iron-agent open a1b2c3d4e5                                    # needs virt-viewer
+iron-agent open a1b2c3d4e5                                    # TigerVNC viewer
 ```
 
 ## What is enforced, and by what

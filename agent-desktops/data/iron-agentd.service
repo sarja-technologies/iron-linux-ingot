@@ -9,8 +9,7 @@ BusName=org.ironlinux.AgentDesktops1
 ExecStart=/usr/libexec/iron/iron-agentd
 Restart=on-failure
 # Root: manages mounts, cgroups and containers, and writes exports the owner
-# requested into their own folders. It never needs these:
-PrivateTmp=yes
+# requested into folders they choose (including /tmp, so no PrivateTmp). It never needs these:
 ProtectKernelModules=yes
 ProtectClock=yes
 LockPersonality=yes

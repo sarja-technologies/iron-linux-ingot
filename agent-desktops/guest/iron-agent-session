@@ -14,8 +14,8 @@ export DISPLAY=:1
 xsetroot -solid '#0e1115' 2>/dev/null || true
 [ -f /usr/share/iron-agent/wallpaper.png ] && command -v xwallpaper >/dev/null && xwallpaper --zoom /usr/share/iron-agent/wallpaper.png || true
 mkdir -p "$HOME/outbox" "$HOME/workspace"
+# openbox-session also starts XDG autostart entries (tint2 panel included).
 openbox-session &
 sleep 1
-command -v tint2 >/dev/null && tint2 &
 xterm -title "Agent shell" -geometry 120x32+40+40 -e bash -l &
 wait $XPID

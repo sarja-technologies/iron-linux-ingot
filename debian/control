@@ -72,7 +72,7 @@ Package: iron-settings
 Architecture: all
 Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.6), policykit-1 | pkexec,
          iron-shell (= ${source:Version}), ${misc:Depends}
-Recommends: virt-viewer, ubuntu-drivers-common
+Recommends: tigervnc-viewer, ubuntu-drivers-common
 Description: Iron Settings for Iron Linux Ingot
  One place for Ingot-specific settings: appearance, the Iron Tiling layouts,
  Agent Desktops (create, watch, instruct, approve, export, snapshot), hardware
@@ -82,7 +82,7 @@ Package: iron-agent-desktops
 Architecture: all
 Depends: python3, python3-gi, python3-pil, systemd-container, polkitd, dbus,
          debootstrap, e2fsprogs, util-linux, ${misc:Depends}
-Recommends: passt, qemu-utils, virt-viewer
+Recommends: passt, qemu-utils, tigervnc-viewer
 Suggests: qemu-system-x86 | qemu-system-arm
 Description: Iron Agent Desktops - isolated desktops for AI agents
  Runs AI agents (Claude Code, Codex CLI, AgentDock, or a plain desktop) in
@@ -147,7 +147,7 @@ Depends: ingot-desktop-lite (= ${source:Version}),
          gnome-software-plugin-flatpak,
          cups,
          iron-agent-desktops (= ${source:Version}),
-         virt-viewer,
+         tigervnc-viewer,
          ${misc:Depends}
 Description: Iron Linux Ingot desktop (full)
  The complete Ingot desktop: the lightweight set plus image viewer, document

@@ -200,11 +200,11 @@ class AgentsPage(Adw.Bin):
             if not d["available"]:
                 self.window.toast("The agent desktop is still starting")
                 return
-            viewer = shutil.which("remote-viewer")
+            viewer = shutil.which("vncviewer")
             if not viewer:
-                self.window.toast("Install virt-viewer to open agent desktops")
+                self.window.toast("Install tigervnc-viewer to open agent desktops")
                 return
-            Gio.Subprocess.new([viewer, "--title", "Agent Desktop", d["viewer_uri"]], Gio.SubprocessFlags.NONE)
+            Gio.Subprocess.new([viewer, d["vnc_socket"]], Gio.SubprocessFlags.NONE)
         self.bus.call("GetDisplay", "s", (agent_id,), on_done=got, on_error=self.window.toast)
 
     def show_agent(self, agent_id, tab=None):

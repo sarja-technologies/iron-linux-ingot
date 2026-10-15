@@ -1,4 +1,7 @@
 #!/bin/sh
-# Launch the Ingot installer from the live session (Wayland-safe: keeps the
-# session's display variables when elevating).
-exec sudo -E env QT_QPA_PLATFORM=wayland\;xcb calamares -d "$@" >/tmp/calamares-launch.log 2>&1
+# Launch the Ingot installer from the live session. Ubuntu 26.04's sudo-rs does
+# not support `sudo -E`, so the session's display variables are passed explicitly.
+exec sudo env \
+    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" DISPLAY="${DISPLAY:-}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+    XAUTHORITY="${XAUTHORITY:-}" QT_QPA_PLATFORM='wayland;xcb' \
+    calamares -d "$@" >/tmp/calamares-launch.log 2>&1

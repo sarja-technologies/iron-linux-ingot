@@ -24,7 +24,7 @@ rm -f /etc/casper.conf
 if [ "$EDITION" = lite ]; then
     apt-mark manual ingot-desktop-lite >/dev/null
     # Keep Agent Desktops (already on the medium) if the user enabled them.
-    [ "$AGENTS" = enable ] && apt-mark manual iron-agent-desktops virt-viewer >/dev/null
+    [ "$AGENTS" = enable ] && apt-mark manual iron-agent-desktops tigervnc-viewer >/dev/null
     apt-get purge -y ingot-desktop gnome-software gnome-software-plugin-flatpak \
         flatpak cups cups-browsed gnome-calculator gnome-system-monitor file-roller baobab \
         system-config-printer 2>/dev/null || true

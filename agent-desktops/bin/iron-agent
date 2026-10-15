@@ -122,10 +122,12 @@ def main(argv):
         d = json.loads(call("GetDisplay", "s", rest[0]))
         if not d["available"]:
             sys.exit("iron-agent: the agent desktop is not running yet")
-        viewer = shutil.which("remote-viewer")
+        # TigerVNC's viewer connects to a Unix socket path directly
+        # (virt-viewer's remote-viewer cannot open vnc+unix URIs).
+        viewer = shutil.which("vncviewer")
         if not viewer:
-            sys.exit("iron-agent: install virt-viewer to open agent desktops")
-        os.execv(viewer, [viewer, "--title", f"Agent Desktop {rest[0]}", d["viewer_uri"]])
+            sys.exit("iron-agent: install tigervnc-viewer to open agent desktops")
+        os.execv(viewer, [viewer, d["vnc_socket"]])
     elif cmd == "preview":
         src = call("GetPreview", "s", rest[0])
         dest = rest[1] if len(rest) > 1 else f"agent-{rest[0]}.png"

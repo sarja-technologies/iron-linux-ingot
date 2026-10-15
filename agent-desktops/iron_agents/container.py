@@ -59,7 +59,9 @@ def prepare_run_dir(agent):
                       ("control/requests", 0o1733), ("control/responses", 0o755)):
         p = os.path.join(d, sub)
         os.makedirs(p, exist_ok=True)
-        os.chown(p, agent.uid_base, agent.uid_base)
+        # The display server runs as the unprivileged agent user inside the container.
+        owner = agent.uid_base + (AGENT_UID if sub == "display" else 0)
+        os.chown(p, owner, owner)
         os.chmod(p, mode)
     return d
 
@@ -151,6 +153,9 @@ def start(store, agent, host):
     props = units.cgroup_properties(agent.resources, host.threads, gpu_devices=gpu_devs)
     props += ["Delegate=yes", "KillMode=mixed", "DevicePolicy=closed",
               "DeviceAllow=/dev/net/tun rwm", "DeviceAllow=char-pts rw",
+              # nspawn itself attaches the disk image via loop devices; the
+              # container payload has no loop nodes and cannot create any.
+              "DeviceAllow=/dev/loop-control rw", "DeviceAllow=block-loop rw", "DeviceAllow=block-blkext rw",
               "TimeoutStartSec=180", "TimeoutStopSec=30"]
     units.systemd_run(agent.id, nspawn_command(agent, disk, host), props,
                       description=f"Iron Agent Desktop: {agent.name}", notify=True)

@@ -29,8 +29,10 @@ def cgroup_properties(res, host_threads, *, extra_memory_mib=0, gpu_devices=()):
         f"TasksMax={res.tasks_max}",
         "IOWeight=50",
         "CPUWeight=50",
-        "OOMPolicy=stop",
-        "ManagedOOMMemoryPressure=kill",
+        # At the memory limit the kernel kills the offending process inside the
+        # agent; the agent itself keeps running. (systemd-oomd pressure killing
+        # would take down the agent's whole init scope.)
+        "OOMPolicy=continue",
     ]
     if res.max_runtime_minutes:
         props.append(f"RuntimeMaxSec={res.max_runtime_minutes * 60}")
