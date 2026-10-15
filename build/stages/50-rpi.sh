@@ -40,7 +40,9 @@ stage_rpi() {
     for p in ${RPI_PURGE} $(in_chroot dpkg-query -W -f='${Package}\n' 'linux-image-*generic*' 'linux-modules-*generic*' 'linux-generic*' 2>/dev/null); do
         in_chroot dpkg-query -W -f='${Status}' "${p}" 2>/dev/null | grep -q "ok installed" && present+=("${p}")
     done
-    [[ ${#present[@]} -gt 0 ]] && apt_chroot purge "${present[@]}"
+    # shim/GRUB are "protected" on Ubuntu; the Pi boots its kernel directly, so
+    # removing them is intended here (and only here).
+    [[ ${#present[@]} -gt 0 ]] && apt_chroot purge --allow-remove-essential "${present[@]}"
     apt_chroot autoremove --purge
     in_chroot apt-get clean
     write_rpi_config

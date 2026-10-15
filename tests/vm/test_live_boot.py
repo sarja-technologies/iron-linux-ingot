@@ -44,8 +44,16 @@ def main():
     with vm:
         # Firmware + GRUB menu, then select the serial diagnostics entry (2nd from bottom on
         # EFI: "...serial console", "UEFI firmware settings").
-        time.sleep(30 if slow else 6)
-        vm.screendump(os.path.join(out, "01-grub.png"))
+        # Wait until GRUB's menu is actually on screen (firmware is very slow under
+        # TCG emulation), detected as a frame with a meaningful amount of text.
+        grub_png = os.path.join(out, "01-grub.png")
+        deadline = time.time() + (600 if slow else 60)
+        while time.time() < deadline:
+            time.sleep(2)
+            vm.screendump(grub_png)
+            if screen_has_menu(grub_png):
+                break
+        time.sleep(1)
         for _ in range(8):
             vm.key("down")
         vm.key("up")
@@ -147,6 +155,16 @@ def main():
         vm.screendump(os.path.join(out, "10-desktop.png"))
         report["facts"]["total_seconds"] = round(time.time() - t0, 1)
     return finalize(report, out, ok)
+
+
+def screen_has_menu(png):
+    """True when GRUB's menu is on screen: its selected entry is a solid dark-blue bar."""
+    from PIL import Image
+    im = Image.open(png).convert("RGB")
+    w, h = im.size
+    small = im.resize((max(1, w // 4), max(1, h // 4)))
+    blue = sum(1 for r, g, b in small.get_flattened_data() if b > 120 and r < 60 and g < 60)
+    return blue > (small.size[0] * small.size[1]) * 0.003
 
 
 def finalize(report, out, ok):
