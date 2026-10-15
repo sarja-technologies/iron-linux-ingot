@@ -12,7 +12,7 @@ PY_SOURCES := system/bin/iron-hwprofile system/bin/iron-update tools/ingot-publi
 	$(wildcard apps/iron-settings/iron_settings/*.py) apps/iron-settings/bin/iron-settings
 SH_SOURCES := build/ingot-build build/lib/common.sh $(wildcard build/stages/*.sh) \
 	system/bin/iron-drivers $(wildcard system/recovery/*) $(wildcard tests/vm/*.sh) \
-	tests/shell/run-shell-tests.sh tests/shell/shell-test-inner.sh \
+	tests/shell/run-shell-tests.sh tests/shell/shell-test-inner.sh tests/shell/shell-test-pointer.sh \
 	agent-desktops/guest/iron-agent-session agent-desktops/guest/iron-agent-display-vm agent-desktops/guest/iron-agent-vm-setup \
 	installer/scripts/postinstall installer/scripts/grub-defaults-fix
 

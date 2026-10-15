@@ -18,4 +18,9 @@ cp "${ROOT}/agent-desktops/data/org.ironlinux.AgentDesktops1.xml" "${EXT}/iron-s
 glib-compile-schemas "${EXT}/iron-tiling@ironlinux.org/schemas"
 export GSETTINGS_SCHEMA_DIR="${EXT}/iron-tiling@ironlinux.org/schemas:/usr/share/glib-2.0/schemas"
 export OUT HERE
-exec dbus-run-session -- bash "${HERE}/shell-test-inner.sh"
+rc=0
+dbus-run-session -- bash "${HERE}/shell-test-inner.sh" || rc=1
+# Fresh shell, settings and session bus for the pointer/multi-monitor suite.
+rm -rf "${XDG_CONFIG_HOME}/dconf"
+dbus-run-session -- bash "${HERE}/shell-test-pointer.sh" || rc=1
+exit "${rc}"
