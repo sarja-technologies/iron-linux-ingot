@@ -1,8 +1,8 @@
 #!/bin/sh
-# Runs inside the installed system, after Calamares' grubcfg module.
+# Runs in the live system after Calamares' grubcfg module; $1 is the target root.
 set -eu
-f=/etc/default/grub
+root="${1:?usage: grub-defaults-fix TARGET_ROOT}"
+f="${root}/etc/default/grub"
 [ -f "$f" ] || exit 0
 sed -i -E 's/ ?cryptdevice=[^ '"'"'"]*//g; s# ?root=/dev/mapper/[^ '"'"'"]*##g' "$f"
-grep -q '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f" && grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f" \
-    >>/var/log/installer/iron-postinstall.log 2>/dev/null || true
+grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f" >>"${root}/var/log/installer/iron-postinstall.log" 2>/dev/null || true

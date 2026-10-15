@@ -5,6 +5,10 @@ import calamares.slideshow 1.0;
 Presentation {
     id: presentation
 
+    // Slides are inset by the slideshow API; paint the whole area so no light
+    // frame shows around them.
+    Rectangle { anchors.fill: parent; color: "#0e1115"; z: -1 }
+
     Timer { interval: 9000; running: presentation.activatedInCalamares; repeat: true; onTriggered: presentation.goToNextSlide() }
 
     Slide {
