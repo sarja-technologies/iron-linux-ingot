@@ -74,7 +74,8 @@ def main():
         if "assword" in vm.serial_text()[-200:]:
             vm.send_serial("\n")
         vm.wait_serial(r"iron@iron-ingot:.*\$ ", timeout=60)
-        vm.run("bind 'set enable-bracketed-paste off' 2>/dev/null; "
+        # systemd >= 257 shell integration prints OSC 3008 context via PROMPT_COMMAND.
+        vm.run("unset PROMPT_COMMAND; bind 'set enable-bracketed-paste off' 2>/dev/null; "
                "export TERM=dumb PAGER=cat SYSTEMD_PAGER=cat LANG=C.UTF-8 PS1='$ '; stty cols 200 -echo")
 
         rc, state = vm.run("timeout 600 systemctl is-system-running --wait", timeout=660)
@@ -121,9 +122,12 @@ def main():
         check("snapd absent", "snap" not in snap.split("\n")[0] or snap.strip() == "none", snap)
         _, ff = vm.run("apt-cache policy firefox | sed -n '1,4p'")
         report["facts"]["firefox_policy"] = ff
-        _, ffo = vm.run("dpkg-query -W -f='${Version}' firefox 2>/dev/null; echo; "
-                        "apt-cache policy firefox | grep -A1 '\\*\\*\\*' | tail -n 1")
-        check("firefox is a native .deb from Mozilla", "snap" not in ffo and "mozilla" in ffo, ffo)
+        # Live media carry no APT lists, so check the package itself and the configured source.
+        _, ffo = vm.run("dpkg-query -W -f='${Version} | ${Maintainer}\\n' firefox; "
+                        "grep -h '^URIs' /etc/apt/sources.list.d/mozilla.sources")
+        check("firefox is a native .deb from Mozilla",
+              "snap" not in ffo.split("\n")[0] and "mozilla" in ffo.split("\n")[0].lower()
+              and "packages.mozilla.org" in ffo, ffo)
         _, hw = vm.run("cat /run/iron/hardware.json")
         try:
             report["facts"]["hardware"] = json.loads(hw)

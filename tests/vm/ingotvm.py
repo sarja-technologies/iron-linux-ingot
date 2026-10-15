@@ -237,4 +237,8 @@ class VM:
         out = re.sub(r"\x1b\[[0-9;?]*[a-zA-Z]", "", out).replace("\r", "")
         # Drop the echoed command line (if the tty still echoes) and the prompt.
         lines = [ln for ln in out.split("\n") if f"echo {marker}" not in ln]
+        while lines and lines[0].strip() in ("$", ""):
+            lines.pop(0)
+        if lines and lines[0].startswith("$ "):
+            lines[0] = lines[0][2:]
         return int(m.group(1)), "\n".join(lines).strip("\n") + "\n"
