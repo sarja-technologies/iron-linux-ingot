@@ -7,14 +7,14 @@
 DESTDIR ?=
 B := build-area/branding
 WALLPAPER_SIZE ?= --width 3840 --height 2160
-PY_SOURCES := system/bin/iron-hwprofile $(wildcard agent-desktops/iron_agents/*.py) \
+PY_SOURCES := system/bin/iron-hwprofile system/bin/iron-update tools/ingot-publish $(wildcard agent-desktops/iron_agents/*.py) \
 	agent-desktops/bin/iron-agentd agent-desktops/bin/iron-agent \
 	$(wildcard apps/iron-settings/iron_settings/*.py) apps/iron-settings/bin/iron-settings
 SH_SOURCES := build/ingot-build build/lib/common.sh $(wildcard build/stages/*.sh) \
 	system/bin/iron-drivers $(wildcard system/recovery/*) $(wildcard tests/vm/*.sh) \
 	tests/shell/run-shell-tests.sh tests/shell/shell-test-inner.sh
 
-.PHONY: all check lint test branding clean $(addprefix install-,iron-base-files iron-branding iron-shell iron-desktop-settings iron-settings iron-agent-desktops iron-installer-config)
+.PHONY: all check lint test branding clean $(addprefix install-,iron-base-files iron-archive-keyring iron-branding iron-shell iron-desktop-settings iron-settings iron-agent-desktops iron-installer-config)
 
 all: branding
 
@@ -67,11 +67,21 @@ install-iron-base-files:
 	install -d $(DESTDIR)/usr/bin
 	ln -sf ../libexec/iron/iron-drivers $(DESTDIR)/usr/bin/iron-drivers
 	ln -sf ../libexec/iron/iron-hwprofile $(DESTDIR)/usr/bin/iron-hwprofile
+	install -Dm755 system/bin/iron-update $(DESTDIR)/usr/bin/iron-update
 	install -Dm644 system/systemd/iron-hwprofile.service $(DESTDIR)/usr/lib/systemd/system/iron-hwprofile.service
 	install -Dm755 system/recovery/iron-reset-graphics $(DESTDIR)/usr/lib/recovery-mode/options/iron-reset-graphics
 	install -Dm755 system/recovery/iron-disable-agents $(DESTDIR)/usr/lib/recovery-mode/options/iron-disable-agents
 	install -Dm644 desktop/defaults/dconf-profile-user $(DESTDIR)/etc/dconf/profile/user
 	install -d $(DESTDIR)/etc/dconf/db/iron-hw.d
+
+# Public archive keys trusted for the Iron package source: every *.gpg (binary
+# OpenPGP export) in packaging/archive-keys/. Image builds add their local
+# development key there in the builder copy only (never committed).
+install-iron-archive-keyring:
+	@ls packaging/archive-keys/*.gpg >/dev/null 2>&1 || { echo "no archive keys in packaging/archive-keys/" >&2; exit 1; }
+	install -d $(DESTDIR)/usr/share/keyrings
+	cat packaging/archive-keys/*.gpg > $(DESTDIR)/usr/share/keyrings/iron-archive-keyring.gpg
+	chmod 644 $(DESTDIR)/usr/share/keyrings/iron-archive-keyring.gpg
 
 install-iron-branding: branding
 	install -d $(DESTDIR)/usr/share/backgrounds/iron

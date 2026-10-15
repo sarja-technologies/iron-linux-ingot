@@ -12,3 +12,5 @@ __pycache__/
 /debian/tmp/
 /build-area/
 build-area/
+# machine-local / CI throwaway archive keys must never be committed
+/packaging/archive-keys/zz-*.gpg

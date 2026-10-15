@@ -1,0 +1,261 @@
+#!/usr/bin/python3
+"""iron-update - Iron Linux's own package source: status, verification, rollback.
+
+Ubuntu and Mozilla packages update through APT/GNOME Software as usual. This
+tool manages the separate, signed Iron Linux source that delivers the iron-*
+and ingot-* packages.
+
+  iron-update status                 source, trusted keys, installed version
+  iron-update set-source URL [--suite S]
+                                     configure the Iron source (root)
+  iron-update remove-source          stop receiving Iron packages (root)
+  iron-update verify                 refresh only the Iron source and check
+                                     its signature against the packaged key
+  iron-update versions               Ingot versions available for rollback
+  iron-update rollback VERSION [--yes]
+                                     downgrade every installed Ingot package
+                                     to VERSION together (root)
+
+Security model: the source is signed-by /usr/share/keyrings/iron-archive-keyring.gpg
+only, and an APT pin lets it supply *only* Ingot's own packages; anything else
+it might list (e.g. a replacement for an Ubuntu package) is never installable.
+"""
+import argparse
+import os
+import re
+import subprocess
+import sys
+import urllib.parse
+
+KEYRING = "/usr/share/keyrings/iron-archive-keyring.gpg"
+SOURCES = "/etc/apt/sources.list.d/iron.sources"
+PREFS = "/etc/apt/preferences.d/iron-archive.pref"
+# Binary packages built from the iron-ingot source (they move together).
+OWN = ("iron-base-files", "iron-archive-keyring", "iron-branding", "iron-shell", "iron-desktop-settings",
+       "iron-settings", "iron-agent-desktops", "iron-installer-config", "ingot-desktop-lite", "ingot-desktop")
+# What the Iron source may provide (Gnotch is packaged by Iron from a pinned commit).
+ALLOWED = "iron-* ingot-* gnotch"
+
+
+def out(cmd, **kw):
+    return subprocess.run(cmd, text=True, capture_output=True, **kw)
+
+
+def need_root():
+    if os.geteuid() != 0:
+        sys.exit("iron-update: this needs administrator rights (run with sudo)")
+
+
+def read_source():
+    try:
+        with open(SOURCES) as f:
+            text = f.read()
+    except FileNotFoundError:
+        return None
+    fields = {}
+    for line in text.splitlines():
+        if ":" in line and not line.lstrip().startswith("#"):
+            k, v = line.split(":", 1)
+            fields[k.strip()] = v.strip()
+    return fields
+
+
+def key_fingerprints(keyring=KEYRING):
+    r = out(["gpg", "--batch", "--no-default-keyring", "--with-colons", "--show-keys", keyring])
+    if r.returncode:
+        return []
+    fprs, uid = [], None
+    lines = r.stdout.splitlines()
+    for i, line in enumerate(lines):
+        f = line.split(":")
+        if f[0] == "pub":
+            # next fpr line belongs to this primary key
+            fpr = next((l.split(":")[9] for l in lines[i + 1:] if l.startswith("fpr:")), "?")
+            uid = next((l.split(":")[9] for l in lines[i + 1:] if l.startswith("uid:")), "")
+            expired = f[1] == "e"
+            fprs.append((fpr, uid, expired))
+    return fprs
+
+
+def installed_version(pkg="iron-base-files"):
+    r = out(["dpkg-query", "-W", "-f", "${Status}\t${Version}", pkg])
+    if r.returncode or "ok installed" not in r.stdout:
+        return None
+    return r.stdout.split("\t", 1)[1]
+
+
+def installed_own():
+    return [p for p in OWN if installed_version(p)]
+
+
+def write_atomic(path, text, mode=0o644):
+    tmp = path + ".iron-update.tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def pin_text(host):
+    # APT matches "origin" against the host name of the source URI.
+    return f"""# Managed by iron-update. The Iron Linux source may only supply Ingot's own
+# packages; everything else it might list is never installable from it.
+Package: {ALLOWED}
+Pin: origin "{host}"
+Pin-Priority: 500
+
+Package: *
+Pin: origin "{host}"
+Pin-Priority: -1
+"""
+
+
+def cmd_set_source(url, suite):
+    need_root()
+    u = urllib.parse.urlparse(url)
+    if u.scheme not in ("https", "http"):
+        sys.exit("iron-update: the source URL must be http(s):// (packages are verified by signature either way)")
+    if not os.path.exists(KEYRING):
+        sys.exit(f"iron-update: {KEYRING} is missing (reinstall iron-archive-keyring)")
+    if not key_fingerprints():
+        sys.exit(f"iron-update: {KEYRING} contains no usable key")
+    write_atomic(SOURCES, f"""# Iron Linux Ingot packages. Managed by iron-update.
+Types: deb
+URIs: {url.rstrip('/')}
+Suites: {suite}
+Components: main
+Signed-By: {KEYRING}
+""")
+    write_atomic(PREFS, pin_text(u.hostname))
+    print(f"Iron source set to {url} ({suite}); run: sudo iron-update verify")
+
+
+def cmd_remove_source():
+    need_root()
+    for p in (SOURCES, PREFS):
+        try:
+            os.unlink(p)
+        except FileNotFoundError:
+            pass
+    print("Iron source removed; Ubuntu and Mozilla updates are unaffected")
+
+
+def cmd_status():
+    print(f"Installed Ingot version: {installed_version() or 'not installed'}")
+    src = read_source()
+    if not src:
+        print("Iron package source: not configured (this build has no published update source)")
+    else:
+        print(f"Iron package source: {src.get('URIs')} suite {src.get('Suites')}"
+              f"{'' if src.get('Enabled', 'yes') != 'no' else ' (disabled)'}")
+        if src.get("Signed-By") != KEYRING:
+            print(f"  WARNING: Signed-By is {src.get('Signed-By')!r}, expected {KEYRING}")
+        print(f"  Restricted to: {ALLOWED} ({'pin present' if os.path.exists(PREFS) else 'WARNING: pin missing'})")
+    keys = key_fingerprints()
+    print("Trusted Iron archive keys:" if keys else f"Trusted Iron archive keys: none ({KEYRING})")
+    for fpr, uid, expired in keys:
+        print(f"  {fpr}  {uid}{'  [EXPIRED]' if expired else ''}")
+    r = out(["apt-cache", "policy", "iron-base-files"])
+    cand = re.search(r"Candidate: (\S+)", r.stdout)
+    if cand and installed_version() and cand.group(1) != installed_version():
+        print(f"Update available: {cand.group(1)}")
+
+
+def apt_iron_only(extra):
+    """apt-get restricted to the Iron source list (other sources untouched)."""
+    return ["apt-get", "-o", f"Dir::Etc::SourceList={SOURCES}", "-o", "Dir::Etc::SourceParts=-",
+            "-o", "APT::Get::List-Cleanup=0", *extra]
+
+
+def cmd_verify():
+    need_root()
+    src = read_source()
+    if not src:
+        sys.exit("iron-update: no Iron source configured")
+    problems = []
+    if src.get("Signed-By") != KEYRING:
+        problems.append(f"Signed-By is {src.get('Signed-By')!r}, expected {KEYRING}")
+    if not os.path.exists(PREFS):
+        problems.append(f"{PREFS} (package restriction) is missing")
+    r = out(apt_iron_only(["update"]))
+    text = r.stdout + r.stderr
+    bad = [l for l in text.splitlines() if l.startswith(("E:", "W:", "Err:"))]
+    if r.returncode or bad:
+        problems.append("APT could not verify the Iron source:\n    " + "\n    ".join(bad or [text.strip()]))
+    if problems:
+        print("FAILED:\n  " + "\n  ".join(problems))
+        return 1
+    print("OK: Iron source reachable and its signature verifies with the packaged key")
+    return 0
+
+
+def available_versions():
+    r = out(["apt-cache", "madison", "iron-base-files"])
+    vers = []
+    for line in r.stdout.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 3 and parts[1] not in vers:
+            vers.append(parts[1])
+    return vers
+
+
+def cmd_versions():
+    cur = installed_version()
+    vers = available_versions()
+    if not vers:
+        print("no Ingot versions known to APT (run: sudo apt update)")
+    for v in vers:
+        print(f"{v}{'  (installed)' if v == cur else ''}")
+
+
+def cmd_rollback(version, yes):
+    need_root()
+    if version not in available_versions():
+        sys.exit(f"iron-update: version {version} is not available from any configured source "
+                 "(see: iron-update versions)")
+    targets = [f"{p}={version}" for p in installed_own()]
+    base = ["apt-get", "install", "--allow-downgrades", "--no-install-recommends", "-y", *targets]
+    sim = out(["apt-get", "-s", *base[1:]])
+    if sim.returncode:
+        sys.exit("iron-update: APT cannot perform this rollback:\n" + (sim.stdout + sim.stderr)[-2000:])
+    changes = [l for l in sim.stdout.splitlines() if l.startswith(("Inst ", "Remv "))]
+    print("Rollback plan:\n  " + "\n  ".join(changes or ["(nothing to change)"]))
+    if any(l.startswith("Remv ") for l in changes):
+        print("NOTE: the plan removes packages; review it carefully.")
+    if not yes:
+        print("Dry run only. Re-run with --yes to apply.")
+        return 0
+    return subprocess.call(base)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="iron-update", description="Iron Linux package source and rollback")
+    sub = ap.add_subparsers(dest="cmd")
+    sub.add_parser("status")
+    s = sub.add_parser("set-source")
+    s.add_argument("url")
+    s.add_argument("--suite", default="ingot")
+    sub.add_parser("remove-source")
+    sub.add_parser("verify")
+    sub.add_parser("versions")
+    r = sub.add_parser("rollback")
+    r.add_argument("version")
+    r.add_argument("--yes", action="store_true")
+    a = ap.parse_args(argv)
+    if a.cmd in (None, "status"):
+        return cmd_status()
+    if a.cmd == "set-source":
+        return cmd_set_source(a.url, a.suite)
+    if a.cmd == "remove-source":
+        return cmd_remove_source()
+    if a.cmd == "verify":
+        return cmd_verify()
+    if a.cmd == "versions":
+        return cmd_versions()
+    if a.cmd == "rollback":
+        return cmd_rollback(a.version, a.yes)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

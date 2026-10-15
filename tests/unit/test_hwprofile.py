@@ -79,6 +79,28 @@ class HwProfileTests(unittest.TestCase):
         self.assertEqual(r["virtualization"], "kvm")
         self.assertIn("enable-animations=false", hw.dconf_defaults(r))
 
+    def test_virtio_gpu_without_virgl_is_software(self):
+        g, l = gpu("card0", "0x1af4", "0x1050", "virtio_gpu")
+        r = self.build({"/proc/cpuinfo": "processor : 0\n", "/proc/meminfo": "MemTotal: 4000000 kB\n",
+                        "/dev/dri/renderD128": "",
+                        "/sys/kernel/debug/dri/0/virtio-gpu-features": " virgl            : no\n edid             : yes\n",
+                        **g}, l)
+        self.assertFalse(r["gpu_acceleration"])
+
+    def test_virtio_gpu_features_unreadable_is_software(self):
+        g, l = gpu("card0", "0x1af4", "0x1050", "virtio_gpu")
+        r = self.build({"/proc/cpuinfo": "processor : 0\n", "/proc/meminfo": "MemTotal: 4000000 kB\n",
+                        "/dev/dri/renderD128": "", **g}, l)
+        self.assertFalse(r["gpu_acceleration"])
+
+    def test_virtio_gpu_with_virgl_is_accelerated(self):
+        g, l = gpu("card0", "0x1af4", "0x1050", "virtio_gpu")
+        r = self.build({"/proc/cpuinfo": "processor : 0\n", "/proc/meminfo": "MemTotal: 4000000 kB\n",
+                        "/dev/dri/renderD128": "",
+                        "/sys/kernel/debug/dri/0/virtio-gpu-features": " virgl            : yes\n",
+                        **g}, l)
+        self.assertTrue(r["gpu_acceleration"])
+
     def test_arm64_pi_low_tier(self):
         g, l = gpu("card1", "", "", "v3d")
         r = self.build({

@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 export DH_VERBOSE = 1
-PKGS := iron-base-files iron-branding iron-shell iron-desktop-settings iron-settings iron-agent-desktops iron-installer-config
+PKGS := iron-base-files iron-archive-keyring iron-branding iron-shell iron-desktop-settings iron-settings iron-agent-desktops iron-installer-config
 
 %:
 	dh $@ --with python3

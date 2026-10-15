@@ -40,6 +40,9 @@ center-new-windows=true
 attach-modal-dialogs=true
 
 [org.gnome.shell]
+# GNOME 50 decides this before extensions load, so the dock's
+# disable-overview-on-startup alone cannot stop it.
+start-in-overview=false
 enabled-extensions=['iron-shell@ironlinux.org', 'iron-tiling@ironlinux.org', 'ubuntu-dock@ubuntu.com', 'ubuntu-appindicators@ubuntu.com']
 favorite-apps=['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Ptyxis.desktop', 'org.gnome.TextEditor.desktop', 'org.ironlinux.Settings.desktop']
 welcome-dialog-last-shown-version='999'
@@ -77,3 +80,7 @@ power-button-action='interactive'
 [org.gnome.software]
 # Ingot does not ship snapd; keep GNOME Software to .deb (and optional Flatpak).
 packaging-format-preference=['deb', 'flatpak']
+
+# Ubuntu's 10_ptyxis override selects the purple 'Ubuntu' palette.
+[org.gnome.Ptyxis.Profile]
+palette='gnome'

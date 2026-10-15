@@ -117,13 +117,7 @@ EOF
 }
 
 install_published_iron_source() {
-    install -Dm644 "${INGOT_APT_KEY:?INGOT_APT_KEY must point to the published archive key}" \
-        "${ROOTFS}/usr/share/keyrings/iron-archive.gpg"
-    cat > "${ROOTFS}/etc/apt/sources.list.d/iron.sources" <<EOF
-Types: deb
-URIs: ${INGOT_APT_URL}
-Suites: ${INGOT_CODENAME}
-Components: main
-Signed-By: /usr/share/keyrings/iron-archive.gpg
-EOF
+    # Same code path as on an installed system: the packaged keyring is the
+    # only key trusted for the source, and the pin limits it to Ingot packages.
+    in_chroot iron-update set-source "${INGOT_APT_URL}" --suite "${INGOT_CODENAME}"
 }

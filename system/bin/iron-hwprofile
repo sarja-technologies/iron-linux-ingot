@@ -76,6 +76,22 @@ def detect_memory(root):
     return {"total_mib": int(m.group(1)) // 1024 if m else 0}
 
 
+def virtio_gpu_3d(root, card):
+    """virtio-gpu always exposes a render node, even when the host gives it no
+    3D (virgl/venus); then Mesa falls back to llvmpipe. The kernel reports the
+    negotiated features in debugfs (readable by root at boot)."""
+    minor = card[len("card"):]
+    feats = read(root, f"/sys/kernel/debug/dri/{minor}/virtio-gpu-features")
+    if not feats:  # newer kernels may name debugfs directories after the device
+        for d in listdir(root, "/sys/kernel/debug/dri"):
+            feats = read(root, f"/sys/kernel/debug/dri/{d}/virtio-gpu-features")
+            if feats:
+                break
+    if not feats:
+        return False  # unknown: assume software rendering (the cautious default)
+    return bool(re.search(r"^\s*(virgl|venus|context init)\s*:\s*yes", feats, re.M))
+
+
 def detect_gpus(root):
     gpus = []
     for card in listdir(root, "/sys/class/drm"):
@@ -91,7 +107,7 @@ def detect_gpus(root):
             "card": card, "driver": driver, "vendor": vendor,
             "pci_id": f"{vendor_id}:{read(root, f'{dev}/device')}" if vendor_id else "",
             "boot_vga": boot_vga,
-            "software_only": driver in SOFTWARE_DRM,
+            "software_only": driver in SOFTWARE_DRM or (driver == "virtio_gpu" and not virtio_gpu_3d(root, card)),
         })
     render_nodes = [n for n in listdir(root, "/dev/dri") if n.startswith("renderD")]
     return gpus, render_nodes

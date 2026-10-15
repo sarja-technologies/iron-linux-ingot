@@ -1,0 +1,339 @@
+#!/usr/bin/python3
+"""ingot-publish - maintain the signed Iron Linux Ingot APT repository.
+
+The repository is a plain directory tree that any static web host can serve
+(rsync/upload the whole tree). Nothing here needs a server-side component.
+
+  ingot-publish --repo DIR --gnupghome KEYS add FILE.deb...
+        Add packages to pool/, rebuild and sign the indexes. Refuses a package
+        whose version is not newer than what is already published (a rebuilt
+        package must get a new version), unless the file is byte-identical.
+  ingot-publish --repo DIR --gnupghome KEYS yank PACKAGE VERSION
+        Withdraw a bad version from the indexes (the file stays in pool/ so
+        systems that installed it can still reinstall or roll back from it).
+  ingot-publish --repo DIR --gnupghome KEYS resign
+        Re-sign the current indexes (key rotation, Valid-Until refresh).
+  ingot-publish --repo DIR [--keyring FILE] verify
+        Check the signature with gpgv against FILE (default: the repo's
+        published key) and every index and package checksum.
+
+Layout:  pool/main/<p>/<pkg>/<file>.deb   dists/<suite>/{InRelease,Release,Release.gpg}
+         dists/<suite>/main/binary-{all,amd64,arm64}/Packages{,.gz,.xz}
+         iron-archive-keyring.gpg  (public key(s), for verification/bootstrap)
+         .ingot-publish.json       (state: yanked versions)
+"""
+import argparse
+import datetime
+import gzip
+import hashlib
+import json
+import lzma
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ORIGIN = "Iron Linux"
+LABEL = "Iron Linux Ingot"
+ARCHES = ("all", "amd64", "arm64")
+KEEP_DEFAULT = 5
+
+
+class PublishError(Exception):
+    pass
+
+
+def run(cmd, **kw):
+    return subprocess.run(cmd, check=True, text=True, capture_output=True, **kw).stdout
+
+
+def version_gt(a, b):
+    return subprocess.run(["dpkg", "--compare-versions", a, "gt", b]).returncode == 0
+
+
+def deb_fields(path):
+    out = run(["dpkg-deb", "-f", path, "Package", "Version", "Architecture"])
+    f = dict(line.split(": ", 1) for line in out.strip().splitlines())
+    return f["Package"], f["Version"], f["Architecture"]
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def pool_dir(pkg):
+    prefix = pkg[:4] if pkg.startswith("lib") else pkg[0]
+    return os.path.join("pool", "main", prefix, pkg)
+
+
+class Repo:
+    def __init__(self, root, suite, gnupghome=None, key=None, keep=KEEP_DEFAULT, valid_days=0):
+        self.root, self.suite = os.path.abspath(root), suite
+        self.gnupghome, self.key, self.keep, self.valid_days = gnupghome, key, keep, valid_days
+        self.state_path = os.path.join(self.root, ".ingot-publish.json")
+
+    # ---- state ---------------------------------------------------------
+    def state(self):
+        try:
+            with open(self.state_path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {"yanked": {}}
+
+    def save_state(self, st):
+        tmp = self.state_path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(st, f, indent=1, sort_keys=True)
+        os.replace(tmp, self.state_path)
+
+    def pool(self):
+        """{package: [(version, arch, relpath)]} for every .deb in pool/."""
+        found = {}
+        top = os.path.join(self.root, "pool")
+        for d, _, files in os.walk(top):
+            for fn in files:
+                if fn.endswith(".deb"):
+                    rel = os.path.relpath(os.path.join(d, fn), self.root)
+                    p, v, a = deb_fields(os.path.join(self.root, rel))
+                    found.setdefault(p, []).append((v, a, rel))
+        return found
+
+    # ---- operations ----------------------------------------------------
+    def add(self, debs):
+        os.makedirs(self.root, exist_ok=True)
+        pool = self.pool()
+        plan = []
+        for deb in debs:
+            p, v, a = deb_fields(deb)
+            if a not in ARCHES:
+                raise PublishError(f"{deb}: unsupported architecture {a}")
+            dest = os.path.join(pool_dir(p), os.path.basename(deb))
+            existing = os.path.join(self.root, dest)
+            if os.path.exists(existing):
+                if sha256(existing) == sha256(deb):
+                    continue  # idempotent re-publish
+                raise PublishError(f"{p} {v}: a different file with this name is already published; "
+                                   "bump the version instead of replacing a release")
+            newest = max((ver for ver, arch, _ in pool.get(p, []) if arch == a),
+                         key=_VersionKey, default=None)
+            if newest and not version_gt(v, newest):
+                raise PublishError(f"{p}: {v} is not newer than the published {newest}")
+            plan.append((deb, dest))
+        for deb, dest in plan:
+            os.makedirs(os.path.join(self.root, os.path.dirname(dest)), exist_ok=True)
+            tmp = os.path.join(self.root, dest + ".part")
+            shutil.copyfile(deb, tmp)
+            os.replace(tmp, os.path.join(self.root, dest))
+            print(f"added {dest}")
+        self.rebuild()
+
+    def yank(self, pkg, version):
+        if not any(v == version for v, _, _ in self.pool().get(pkg, [])):
+            raise PublishError(f"{pkg} {version} is not in the pool")
+        st = self.state()
+        st["yanked"].setdefault(pkg, [])
+        if version not in st["yanked"][pkg]:
+            st["yanked"][pkg].append(version)
+        self.save_state(st)
+        self.rebuild()
+        print(f"yanked {pkg} {version} (file kept in pool/)")
+
+    def rebuild(self):
+        """Write fresh indexes beside the live ones, sign them, then swap."""
+        yanked = self.state()["yanked"]
+        pool = self.pool()
+        entries = {a: [] for a in ARCHES}
+        for pkg, versions in sorted(pool.items()):
+            for arch in ARCHES:
+                live = [x for x in versions if x[1] == arch and x[0] not in yanked.get(pkg, [])]
+                live.sort(key=lambda x: _VersionKey(x[0]), reverse=True)
+                entries[arch] += [rel for _, _, rel in live[: self.keep]]
+        dists = os.path.join(self.root, "dists")
+        os.makedirs(dists, exist_ok=True)
+        work = tempfile.mkdtemp(prefix=f".{self.suite}.", dir=dists)
+        try:
+            for arch in ARCHES:
+                bdir = os.path.join(work, "main", f"binary-{arch}")
+                os.makedirs(bdir)
+                # binary-<arch> indexes also list Architecture: all packages (APT convention).
+                rels = entries[arch] + (entries["all"] if arch != "all" else [])
+                text = self._packages(rels)
+                with open(os.path.join(bdir, "Packages"), "w") as f:
+                    f.write(text)
+                with gzip.open(os.path.join(bdir, "Packages.gz"), "wt", compresslevel=9) as f:
+                    f.write(text)
+                with lzma.open(os.path.join(bdir, "Packages.xz"), "wt") as f:
+                    f.write(text)
+            self._release(work)
+            self._sign(work)
+            live = os.path.join(dists, self.suite)
+            old = live + ".old"
+            if os.path.exists(old):
+                shutil.rmtree(old)
+            if os.path.exists(live):
+                os.rename(live, old)
+            os.rename(work, live)
+            shutil.rmtree(old, ignore_errors=True)
+        except BaseException:
+            shutil.rmtree(work, ignore_errors=True)
+            raise
+        self._export_key()
+
+    def resign(self):
+        self.rebuild()
+
+    # ---- helpers -------------------------------------------------------
+    def _packages(self, rels):
+        """Packages stanzas: the .deb's control fields plus location and checksums."""
+        stanzas = []
+        for rel in sorted(rels):
+            path = os.path.join(self.root, rel)
+            control = run(["dpkg-deb", "-f", path]).rstrip("\n")
+            digests = {n: hashlib.new(n) for n in ("md5", "sha1", "sha256")}
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    for h in digests.values():
+                        h.update(chunk)
+            stanzas.append(control + f"\nFilename: {rel}\nSize: {os.path.getsize(path)}"
+                           f"\nMD5sum: {digests['md5'].hexdigest()}\nSHA1: {digests['sha1'].hexdigest()}"
+                           f"\nSHA256: {digests['sha256'].hexdigest()}\n")
+        return "\n".join(stanzas)
+
+    def _release(self, work):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        opts = [
+            "-o", f"APT::FTPArchive::Release::Origin={ORIGIN}",
+            "-o", f"APT::FTPArchive::Release::Label={LABEL}",
+            "-o", f"APT::FTPArchive::Release::Suite={self.suite}",
+            "-o", f"APT::FTPArchive::Release::Codename={self.suite}",
+            "-o", "APT::FTPArchive::Release::Architectures=" + " ".join(ARCHES),
+            "-o", "APT::FTPArchive::Release::Components=main",
+            "-o", "APT::FTPArchive::Release::Description=Iron Linux Ingot packages",
+            "-o", "APT::FTPArchive::Release::Acquire-By-Hash=no",
+        ]
+        rel = run(["apt-ftparchive", *opts, "release", "."], cwd=work)
+        if self.valid_days:
+            until = (now + datetime.timedelta(days=self.valid_days)).strftime("%a, %d %b %Y %H:%M:%S UTC")
+            rel = rel.replace("\nDate:", f"\nValid-Until: {until}\nDate:", 1)
+        with open(os.path.join(work, "Release"), "w") as f:
+            f.write(rel)
+
+    def _gpg(self, *args):
+        if not self.gnupghome:
+            raise PublishError("--gnupghome is required to sign")
+        cmd = ["gpg", "--homedir", self.gnupghome, "--batch", "--yes", "--pinentry-mode", "loopback"]
+        if self.key:
+            cmd += ["--local-user", self.key]
+        return run(cmd + list(args))
+
+    def _sign(self, work):
+        rel = os.path.join(work, "Release")
+        self._gpg("--digest-algo", "SHA512", "--clearsign", "-o", os.path.join(work, "InRelease"), rel)
+        self._gpg("--digest-algo", "SHA512", "--detach-sign", "--armor", "-o", os.path.join(work, "Release.gpg"), rel)
+
+    def _export_key(self):
+        cmd = ["gpg", "--homedir", self.gnupghome, "--batch", "--export"]
+        if self.key:
+            cmd.append(self.key)
+        data = subprocess.run(cmd, check=True, capture_output=True).stdout
+        tmp = os.path.join(self.root, ".keyring.tmp")
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, os.path.join(self.root, "iron-archive-keyring.gpg"))
+
+    def verify(self, keyring=None):
+        keyring = keyring or os.path.join(self.root, "iron-archive-keyring.gpg")
+        d = os.path.join(self.root, "dists", self.suite)
+        r = subprocess.run(["gpgv", "--keyring", os.path.abspath(keyring), os.path.join(d, "InRelease")],
+                           capture_output=True, text=True)
+        if r.returncode:
+            raise PublishError("InRelease signature does not verify:\n" + r.stderr.strip())
+        r = subprocess.run(["gpgv", "--keyring", os.path.abspath(keyring), os.path.join(d, "Release.gpg"),
+                            os.path.join(d, "Release")], capture_output=True, text=True)
+        if r.returncode:
+            raise PublishError("Release.gpg signature does not verify:\n" + r.stderr.strip())
+        # Release -> index checksums
+        with open(os.path.join(d, "Release")) as f:
+            rel = f.read()
+        sums = rel.split("SHA256:\n", 1)[1].split("\n")
+        n = 0
+        for line in sums:
+            if not line.startswith(" "):
+                break
+            digest, size, name = line.split()
+            path = os.path.join(d, name)
+            if not os.path.exists(path):
+                raise PublishError(f"Release lists missing index {name}")
+            if sha256(path) != digest or os.path.getsize(path) != int(size):
+                raise PublishError(f"checksum mismatch for {name}")
+            n += 1
+        # index -> package checksums
+        debs = 0
+        for arch in ARCHES:
+            with open(os.path.join(d, "main", f"binary-{arch}", "Packages")) as f:
+                for stanza in f.read().split("\n\n"):
+                    fields = dict(l.split(": ", 1) for l in stanza.splitlines() if ": " in l and not l.startswith(" "))
+                    if "Filename" not in fields:
+                        continue
+                    p = os.path.join(self.root, fields["Filename"])
+                    if sha256(p) != fields["SHA256"]:
+                        raise PublishError(f"checksum mismatch for {fields['Filename']}")
+                    debs += 1
+        print(f"OK: signatures valid, {n} index checksums, {debs} package checksums")
+
+
+class _VersionKey:
+    """Sort key using dpkg's version ordering."""
+
+    def __init__(self, v):
+        self.v = v
+
+    def __lt__(self, other):
+        return version_gt(other.v, self.v)
+
+    def __eq__(self, other):
+        return self.v == other.v
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="ingot-publish", description=__doc__.splitlines()[0])
+    ap.add_argument("--repo", required=True)
+    ap.add_argument("--suite", default="ingot")
+    ap.add_argument("--gnupghome")
+    ap.add_argument("--key", help="signing key id/fingerprint (default: the only secret key)")
+    ap.add_argument("--keep", type=int, default=KEEP_DEFAULT, help="versions per package kept in the index")
+    ap.add_argument("--valid-days", type=int, default=0,
+                    help="add Valid-Until (clients reject stale indexes; requires regular resign)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    a = sub.add_parser("add")
+    a.add_argument("debs", nargs="+")
+    y = sub.add_parser("yank")
+    y.add_argument("package")
+    y.add_argument("version")
+    sub.add_parser("resign")
+    v = sub.add_parser("verify")
+    v.add_argument("--keyring")
+    args = ap.parse_args(argv)
+    repo = Repo(args.repo, args.suite, args.gnupghome, args.key, args.keep, args.valid_days)
+    try:
+        if args.cmd == "add":
+            repo.add(args.debs)
+        elif args.cmd == "yank":
+            repo.yank(args.package, args.version)
+        elif args.cmd == "resign":
+            repo.resign()
+        elif args.cmd == "verify":
+            repo.verify(args.keyring)
+    except (PublishError, subprocess.CalledProcessError) as e:
+        msg = e.stderr if isinstance(e, subprocess.CalledProcessError) and e.stderr else e
+        sys.exit(f"ingot-publish: {msg}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

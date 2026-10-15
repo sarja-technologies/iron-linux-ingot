@@ -19,19 +19,28 @@ Standards-Version: 4.7.0
 Homepage: https://github.com/crossainthero-lab/iron-linux-ingot
 Rules-Requires-Root: no
 
+Package: iron-archive-keyring
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}
+Description: Iron Linux archive signing keys
+ OpenPGP public keys that sign the Iron Linux package source. APT trusts
+ them only for that source (Signed-By), never globally.
+
 Package: iron-base-files
 Architecture: all
 Depends: base-files,
+         iron-archive-keyring,
          python3,
          dconf-cli,
          ca-certificates,
          ${misc:Depends}
-Recommends: systemd-zram-generator, ubuntu-drivers-common, unattended-upgrades, friendly-recovery
+Recommends: systemd-zram-generator, ubuntu-drivers-common, unattended-upgrades, friendly-recovery, gpg
 Description: Iron Linux Ingot base system identity and policy
  OS identity (os-release, lsb-release, issue), APT policy (no snapd, Mozilla's
  signed Firefox repository), zram swap, sysctl defaults, GRUB defaults,
- adaptive hardware profile (iron-hwprofile), driver management (iron-drivers)
- and recovery-mode options.
+ adaptive hardware profile (iron-hwprofile), driver management (iron-drivers),
+ the Iron package source tool (iron-update) and recovery-mode options.
 
 Package: iron-branding
 Architecture: all
