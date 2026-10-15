@@ -5,6 +5,7 @@ The agent runs its own kernel. QEMU itself runs as the unprivileged
 limits cover guest RAM plus a fixed emulator overhead. Storage is a qcow2
 overlay (virtual size = storage limit) on the shared read-only base image.
 """
+import grp
 import json
 import os
 import pwd
@@ -38,8 +39,9 @@ def prepare_run_dir(agent):
     os.makedirs(d, exist_ok=True)
     os.chown(d, agent.owner_uid, gid)
     os.chmod(d, 0o750)
+    # vm/ holds QEMU's own sockets and console log (QEMU runs as iron-agent-vm).
     for sub, mode in (("display", 0o755), ("control", 0o755), ("control/inbox", 0o750),
-                      ("control/requests", 0o1733), ("control/responses", 0o755)):
+                      ("control/requests", 0o1733), ("control/responses", 0o755), ("vm", 0o750)):
         p = os.path.join(d, sub)
         os.makedirs(p, exist_ok=True)
         os.chown(p, uid, gid)
@@ -56,6 +58,15 @@ def ensure_disk(store, agent):
     os.chown(store.path(agent.id), 0, gid)
     os.chmod(store.path(agent.id), 0o750)
     return disk
+
+
+def _kvm_group():
+    """The group that owns /dev/kvm (kvm on most systems, render on some udev setups).
+    DevicePolicy=closed still limits the unit to /dev/kvm alone."""
+    try:
+        return grp.getgrgid(os.stat("/dev/kvm").st_gid).gr_name
+    except (OSError, KeyError):
+        return "kvm"
 
 
 def qemu_command(agent, disk, host):
@@ -80,8 +91,8 @@ def qemu_command(agent, disk, host):
         "-drive", f"file={disk},if=virtio,format=qcow2,discard=unmap,cache=none",
         "-virtfs", f"local,path={rd}/control,mount_tag=ironctl,security_model=mapped-xattr",
         "-vnc", f"unix:{rd}/display/vnc.sock",
-        "-qmp", f"unix:{rd}/qmp.sock,server=on,wait=off",
-        "-serial", f"file:{rd}/console.log",
+        "-qmp", f"unix:{rd}/vm/qmp.sock,server=on,wait=off",
+        "-serial", f"file:{rd}/vm/console.log",
         "-device", "virtio-rng-pci", "-device", "virtio-balloon-pci",
         "-display", "none", "-nodefaults", "-no-user-config",
         "-sandbox", "on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny",
@@ -103,7 +114,7 @@ def start(store, agent, host):
     prepare_run_dir(agent)
     cmd, kvm = qemu_command(agent, disk, host)
     props = units.cgroup_properties(agent.resources, host.threads, extra_memory_mib=QEMU_OVERHEAD_MIB)
-    props += [f"User={VM_USER}", f"Group={VM_USER}", "SupplementaryGroups=kvm",
+    props += [f"User={VM_USER}", f"Group={VM_USER}", f"SupplementaryGroups={_kvm_group()}",
               "NoNewPrivileges=yes", "ProtectSystem=strict", "ProtectHome=yes", "PrivateTmp=yes",
               f"ReadWritePaths={store.path(agent.id)} {run_dir(agent)}",
               "ProtectKernelTunables=yes", "ProtectKernelModules=yes", "ProtectControlGroups=yes",
@@ -153,7 +164,7 @@ class QMP:
 
 
 def _qmp(agent):
-    return QMP(os.path.join(run_dir(agent), "qmp.sock"))
+    return QMP(os.path.join(run_dir(agent), "vm", "qmp.sock"))
 
 
 def pause(agent):
@@ -208,7 +219,7 @@ def restore(store, agent, name):
 
 def guest_console_log(agent):
     try:
-        with open(os.path.join(run_dir(agent), "console.log"), errors="replace") as f:
+        with open(os.path.join(run_dir(agent), "vm", "console.log"), errors="replace") as f:
             return f.read()[-20000:]
     except OSError:
         return ""

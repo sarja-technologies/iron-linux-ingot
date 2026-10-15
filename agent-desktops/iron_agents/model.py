@@ -103,7 +103,10 @@ class Store:
 
     def __init__(self, root=STATE_DIR):
         self.root = root
-        os.makedirs(root, mode=0o700, exist_ok=True)
+        # Traversable but not listable: QEMU (iron-agent-vm) must reach VM agent
+        # disks; each agent directory carries its own restrictive mode.
+        os.makedirs(root, mode=0o711, exist_ok=True)
+        os.chmod(root, 0o711)
 
     def path(self, agent_id, *parts):
         if not re.fullmatch(r"a[0-9a-f]{10}", agent_id or ""):

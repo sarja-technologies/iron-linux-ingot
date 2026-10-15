@@ -6,7 +6,8 @@ if [ "$1" = configure ]; then
         adduser --system --group --no-create-home --home /nonexistent iron-agent-vm >/dev/null
     fi
     adduser iron-agent-vm kvm >/dev/null 2>&1 || true
-    install -d -m 700 /var/lib/iron/agents
+    # 0711: traversable (VM agents run QEMU as iron-agent-vm) but not listable.
+    install -d -m 711 /var/lib/iron/agents
     install -d -m 755 /var/lib/iron/agent-images
 fi
 #DEBHELPER#

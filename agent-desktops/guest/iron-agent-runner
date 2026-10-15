@@ -75,13 +75,17 @@ def run_instruction(text):
     term = ["xterm", "-title", f"Agent task {n}", "-geometry", "140x40", "-e", "bash", "-lc", script]
     proc = subprocess.Popen(term, env=agent_env(), user=AGENT.pw_uid, group=AGENT.pw_gid,
                             extra_groups=[], cwd=WORKSPACE, start_new_session=True)
-    proc.wait()
+    rc = proc.wait()
     try:
         with open(log, errors="replace") as f:
             tail = f.read()[-600:].strip().splitlines()
-        summary = tail[-1] if tail else "completed"
     except OSError:
-        summary = "completed"
+        tail = None
+    if rc != 0 or tail is None:
+        # Never report success for a task that did not run (e.g. no display).
+        write_status(state="failed", summary=f"Task {n}: could not start (terminal exit {rc}, no log)")
+        return
+    summary = tail[-1] if tail else "completed (no output)"
     write_status(state="done", summary=f"Task {n}: {summary[:240]}")
 
 
