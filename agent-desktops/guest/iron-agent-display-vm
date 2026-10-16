@@ -9,6 +9,8 @@ rm -f "$AUTH"
 (umask 077; : > "$AUTH")
 xauth -q -f "$AUTH" add :0 . "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 chown agent:agent "$AUTH"
+# udev loads virtio_gpu late on a busy host; Xorg started before it finds "no screens".
+for _ in $(seq 1 120); do ls /dev/dri/card* >/dev/null 2>&1 && break; sleep 0.5; done
 rm -f /tmp/.X11-unix/X0 /tmp/.X0-lock
 Xorg :0 vt7 -nolisten tcp -noreset -novtswitch -auth "$AUTH" -s 0 -dpms -logfile /var/log/Xorg.0.log &
 XPID=$!

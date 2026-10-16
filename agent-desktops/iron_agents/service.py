@@ -250,10 +250,23 @@ class Service:
     def _start_worker(self, a):
         try:
             # A status file left from the previous run must not look like a live guest.
+            ctl = os.path.join(self._run_dir(a), "control")
             try:
-                os.unlink(os.path.join(self._run_dir(a), "control", "status.json"))
+                os.unlink(os.path.join(ctl, "status.json"))
             except OSError:
                 pass
+            # Approval requests from the previous run can no longer be answered
+            # (the process that asked is gone); do not offer them again.
+            for sub in ("requests", "responses"):
+                try:
+                    names = os.listdir(os.path.join(ctl, sub))
+                except OSError:
+                    continue
+                for fn in names:
+                    try:
+                        os.unlink(os.path.join(ctl, sub, fn))
+                    except OSError:
+                        pass
             info = backend(a).start(self.store, a, self.host) or {}
             with self.lock:
                 self.started[a.id] = (time.monotonic(), info.get("kvm", True))
@@ -407,6 +420,9 @@ class Service:
                               virtfs_root=a.backend == "vm")
         if a.state == "waiting" and not self.approvals.for_agent(a.id):
             self._save(a, "running")
+        else:
+            # Clients (panel notifications, Iron Settings) withdraw the request.
+            self.emit("AgentChanged", a.id, a.state)
 
     def m_CreateSnapshot(self, sender, agent_id, name):
         a = self._agent_for(sender, agent_id)

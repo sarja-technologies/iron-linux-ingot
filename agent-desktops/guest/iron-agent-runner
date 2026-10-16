@@ -28,14 +28,16 @@ OUTBOX = os.path.join(HOME, "outbox")
 WORKSPACE = os.path.join(HOME, "workspace")
 
 state = {"task": 0, "state": "idle", "summary": ""}
+status_lock = threading.Lock()
 
 
 def write_status(**kw):
-    state.update(kw, updated=time.time())
-    tmp = STATUS + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(state, f)
-    os.replace(tmp, STATUS)
+    with status_lock:
+        state.update(kw, updated=time.time())
+        tmp = STATUS + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, STATUS)
 
 
 def runtime():
@@ -64,6 +66,8 @@ def in_vm():
 # Container agents draw on Xvnc :1; VM agents on the VM's own screen, Xorg :0.
 DISPLAY = ":0" if in_vm() else ":1"
 XAUTH = "/run/iron-agent/xauth"
+# Exit status of each task, written by the task terminal (agent-owned).
+TASK_DIR = "/run/iron-agent/tasks"
 
 
 def agent_env():
@@ -76,11 +80,16 @@ def agent_env():
 
 
 def wait_for_display(timeout=120):
+    """True once the agent's X server accepts clients. Its socket appears before
+    it does (and Xorg may restart once while the virtual GPU comes up)."""
     sock = f"/tmp/.X11-unix/X{DISPLAY[1:]}"
     deadline = time.time() + timeout
     while time.time() < deadline:
         if os.path.exists(sock):
-            return True
+            r = subprocess.run(["xset", "q"], env=agent_env(), user=AGENT.pw_uid, group=AGENT.pw_gid,
+                               extra_groups=[], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r.returncode == 0:
+                return True
         time.sleep(1)
     return False
 
@@ -98,21 +107,50 @@ def run_instruction(text):
     if not wait_for_display():
         write_status(state="failed", summary=f"Task {n}: the agent desktop (display {DISPLAY}) did not start")
         return
+    # The task reports its own exit status, so it counts as finished as soon as
+    # the command ends; the terminal stays open afterwards for the owner to read.
+    os.makedirs(TASK_DIR, mode=0o700, exist_ok=True)
+    os.chown(TASK_DIR, AGENT.pw_uid, AGENT.pw_gid)
+    rc_file = os.path.join(TASK_DIR, f"task-{n:03d}.rc")
+    if os.path.exists(rc_file):
+        os.unlink(rc_file)
     script = (f"cd {shlex.quote(WORKSPACE)} && echo '# Iron Agent task {n}' && "
               f"{shlex.join(argv)} 2>&1 | tee {shlex.quote(log)}; "
+              f"echo ${{PIPESTATUS[0]}} > {shlex.quote(rc_file)}.tmp && mv {shlex.quote(rc_file)}.tmp {shlex.quote(rc_file)}; "
               f"echo; echo '[task {n} finished - press Enter to close]'; read -r _")
     term = ["xterm", "-title", f"Agent task {n}", "-geometry", "140x40", "-e", "bash", "-lc", script]
-    proc = subprocess.Popen(term, env=agent_env(), user=AGENT.pw_uid, group=AGENT.pw_gid,
-                            extra_groups=[], cwd=WORKSPACE, start_new_session=True)
-    rc = proc.wait()
+    err_path = os.path.join(TASK_DIR, f"task-{n:03d}.terminal.log")
+    with open(err_path, "w") as err:
+        proc = subprocess.Popen(term, env=agent_env(), user=AGENT.pw_uid, group=AGENT.pw_gid,
+                                extra_groups=[], cwd=WORKSPACE, start_new_session=True,
+                                stdout=err, stderr=subprocess.STDOUT)
+    rc = None
+    while rc is None:
+        try:
+            with open(rc_file) as f:
+                rc = int(f.read().strip() or "1")
+        except (OSError, ValueError):
+            if proc.poll() is not None:  # terminal gone without a status: the task never ran or was closed
+                break
+            time.sleep(0.5)
     try:
         with open(log, errors="replace") as f:
             tail = f.read()[-600:].strip().splitlines()
     except OSError:
         tail = None
-    if rc != 0 or tail is None:
+    if rc is None or tail is None:
         # Never report success for a task that did not run (e.g. no display).
-        write_status(state="failed", summary=f"Task {n}: could not start (terminal exit {rc}, no log)")
+        try:
+            with open(err_path, errors="replace") as f:
+                why = (f.read().strip().splitlines() or [""])[-1][:160]
+        except OSError:
+            why = ""
+        write_status(state="failed", summary=f"Task {n}: could not start or was closed early "
+                                             f"(terminal exit {proc.poll()}{': ' + why if why else ''})")
+        return
+    if rc != 0:
+        last = tail[-1] if tail else "no output"
+        write_status(state="failed", summary=f"Task {n}: exit {rc}: {last[:220]}")
         return
     summary = tail[-1] if tail else "completed (no output)"
     write_status(state="done", summary=f"Task {n}: {summary[:240]}")
@@ -136,6 +174,23 @@ def inbox_loop():
                 continue
             if msg.get("type") == "instruction" and msg.get("text"):
                 run_instruction(str(msg["text"]))
+        time.sleep(1)
+
+
+def shutdown_watcher():
+    """VM agents: power off when the host service asks (its own thread, so a
+    task that is still running or waiting for approval cannot delay it)."""
+    path = os.path.join(CONTROL, "shutdown")
+    while True:
+        try:
+            # Written by the host service (root, like approval responses); the
+            # agent user cannot create a root-owned file here.
+            if os.stat(path).st_uid == 0:
+                os.unlink(path)
+                write_status(state="stopping", summary="shutting down")
+                subprocess.run(["systemctl", "poweroff", "--no-block"])
+        except OSError:
+            pass
         time.sleep(1)
 
 
@@ -187,4 +242,6 @@ def handle_elevate(conn):
 if __name__ == "__main__":
     write_status()
     threading.Thread(target=elevate_server, daemon=True).start()
+    if in_vm():
+        threading.Thread(target=shutdown_watcher, daemon=True).start()
     inbox_loop()

@@ -127,6 +127,7 @@ export default class IronShellExtension extends Extension {
         this._logo?.destroy();
         this._logo = null;
         Main.panel.remove_style_class_name('iron-panel');
+        this._approvalNotes = null;
         this._source?.destroy();
         this._source = null;
     }
@@ -190,6 +191,19 @@ export default class IronShellExtension extends Extension {
             if (!e && this._indicator)
                 this._indicator.update(JSON.parse(r[0]));
         });
+        // Approval banners are critical (they stay up): withdraw the ones decided
+        // elsewhere (CLI, Iron Settings) or whose agent was stopped or deleted.
+        if (this._approvalNotes?.size) {
+            this._proxy?.ListApprovalsRemote((r, e) => {
+                if (e || !this._approvalNotes)
+                    return;
+                const pending = new Set(JSON.parse(r[0]).map(req => req.id));
+                for (const [id, n] of this._approvalNotes) {
+                    if (!pending.has(id))
+                        n.destroy();
+                }
+            });
+        }
     }
 
     call(method, ...args) {
@@ -233,6 +247,9 @@ export default class IronShellExtension extends Extension {
         const n = this._notify(`${req.agent_name ?? 'Agent'} needs approval`, req.summary ?? '', true);
         n.addAction('Allow', () => this.call('Decide', req.id, true));
         n.addAction('Deny', () => this.call('Decide', req.id, false));
+        this._approvalNotes ??= new Map();
+        this._approvalNotes.set(req.id, n);
+        n.connect('destroy', () => this._approvalNotes?.delete(req.id));
         this._refresh();
     }
 

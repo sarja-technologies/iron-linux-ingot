@@ -47,6 +47,10 @@ def prepare_run_dir(agent):
         os.makedirs(p, exist_ok=True)
         os.chown(p, uid, gid)
         os.chmod(p, mode)
+    try:  # a shutdown request the previous run never consumed
+        os.unlink(os.path.join(d, "control", "shutdown"))
+    except FileNotFoundError:
+        pass
     return d
 
 
@@ -187,6 +191,22 @@ def resume(agent):
 
 
 def stop(agent, timeout=30):
+    # Ask the guest's runner (root in the guest) over the control share; the
+    # minimal agent image has no ACPI power-button handling, so system_powerdown
+    # alone is ignored and the VM would only stop by SIGTERM after the timeout.
+    ctl = os.path.join(run_dir(agent), "control")
+    try:
+        tmp = os.path.join(ctl, ".shutdown.tmp")
+        with open(tmp, "w") as f:
+            f.write("poweroff\n")
+        # Host-written, like approval responses: 9p (mapped-xattr) shows it to
+        # the guest as root-owned, which the agent user cannot forge.
+        for attr in ("user.virtfs.uid", "user.virtfs.gid"):
+            os.setxattr(tmp, attr, (0).to_bytes(4, "little"))
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, os.path.join(ctl, "shutdown"))
+    except OSError:
+        pass
     try:
         q = _qmp(agent)
         q.cmd("system_powerdown")

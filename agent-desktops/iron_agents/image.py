@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import time
 
-from .config import IMAGE_DIR
+from .config import IMAGE_DIR, STATE_DIR
 
 GUEST_PACKAGES = [
     "systemd-sysv", "dbus", "dbus-x11", "ca-certificates", "locales", "tzdata",
@@ -70,7 +70,34 @@ class Mounts:
             subprocess.run(["umount", "-l", p])
 
 
-def build(name="base", vm=False, runtimes=(), browser=False, mirror=None):
+def dependent_vm_disks(name, state_dir=STATE_DIR):
+    """VM agent disks that are qcow2 overlays on this image. Replacing the image
+    under them would silently corrupt them (container agents copy the rootfs)."""
+    base = os.path.realpath(os.path.join(IMAGE_DIR, name, "disk.qcow2"))
+    found = []
+    try:
+        ids = os.listdir(state_dir)
+    except OSError:
+        return found
+    for aid in sorted(ids):
+        disk = os.path.join(state_dir, aid, "disk.qcow2")
+        if not os.path.isfile(disk):
+            continue
+        r = subprocess.run(["qemu-img", "info", "-U", "--output=json", disk], capture_output=True, text=True)
+        try:
+            backing = json.loads(r.stdout).get("full-backing-filename") or json.loads(r.stdout).get("backing-filename")
+        except ValueError:
+            continue
+        if backing and os.path.realpath(backing) == base:
+            found.append(aid)
+    return found
+
+
+def build(name="base", vm=False, runtimes=(), browser=False, mirror=None, force=False):
+    users = dependent_vm_disks(name)
+    if users and not force:
+        raise RuntimeError(f"VM agents {', '.join(users)} use image '{name}' as their disk base; delete them "
+                           "first (or rebuild with --force and recreate them: their disks will not boot)")
     arch = subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True).stdout.strip()
     suite = _host_release()
     mirror = mirror or _mirror(arch)
