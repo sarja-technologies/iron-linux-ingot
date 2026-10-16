@@ -1,0 +1,11 @@
+PASS  create aa3c80279b0
+PASS  guest ready in 40 s
+PASS  task 1 done
+PASS  task 2 (exit 1) reported failed
+PASS  approval requested: aa3c80279b0-0f09e66740c80fab
+PASS  approved root command ran
+PASS  preview
+PASS  export
+PASS  clean stop in 6 s
+PASS  workspace persisted across restart
+PASS  delete

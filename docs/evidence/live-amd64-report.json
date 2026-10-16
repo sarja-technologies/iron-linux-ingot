@@ -1,7 +1,7 @@
 {
   "scenario": "live-amd64",
-  "iso": "/home/dembele/Documents/Iron-Linux/iron-linux-ingot/out/iron-ingot-26.10-dev-amd64-full.iso",
-  "started": "2026-10-15T11:02:17Z",
+  "iso": "/home/dembele/Documents/Iron-Linux/iron-linux-iron/out/iron-ingot-26.10-dev-amd64-full.iso",
+  "started": "2026-10-16T09:14:44Z",
   "checks": {
     "kernel started": {
       "pass": true,
@@ -25,7 +25,7 @@
     },
     "gnome-shell running": {
       "pass": true,
-      "detail": "1330 /usr/bin/gnome-shell --mode=user\n1488 /usr/libexec/gnome-shell-calendar-server\n"
+      "detail": "1330 /usr/bin/gnome-shell --mode=user\n1420 /usr/libexec/gnome-shell-calendar-server\n"
     },
     "extension active: iron-shell@ironlinux.org": {
       "pass": true,
@@ -65,10 +65,10 @@
     }
   },
   "facts": {
-    "kernel_seconds": 16.3,
-    "login_prompt_seconds": 89.9,
+    "kernel_seconds": 15.3,
+    "login_prompt_seconds": 87.4,
     "system_state": "running",
-    "system_ready_seconds": 94.9,
+    "system_ready_seconds": 92.4,
     "failed_units": [],
     "kernel": "7.0.0-38-generic x86_64",
     "xwayland": "not started (on demand)",
@@ -92,17 +92,17 @@
       "gpus": [
         {
           "card": "card1",
-          "driver": "virtio-pci",
+          "driver": "virtio_gpu",
           "vendor": "virtio",
           "pci_id": "0x1af4:0x1050",
           "boot_vga": true,
-          "software_only": false
+          "software_only": true
         }
       ],
       "render_nodes": [
         "renderD128"
       ],
-      "gpu_acceleration": true,
+      "gpu_acceleration": false,
       "nvidia": false,
       "virtualization": "kvm",
       "laptop": false,
@@ -111,10 +111,10 @@
       "raspberry_pi": false,
       "tier": "low"
     },
-    "used_memory_mib_after_login": "900",
+    "used_memory_mib_after_login": "885",
     "secureboot": "This system doesn't support Secure Boot",
-    "journal_errors_tail": "Oct 15 11:03:41 iron-ingot gdm-autologin][1145]: gkr-pam: couldn't unlock the login keyring.\n",
-    "total_seconds": 116.0
+    "journal_errors_tail": "Oct 16 09:16:05 iron-ingot gdm-autologin][1145]: gkr-pam: couldn't unlock the login keyring.\n",
+    "total_seconds": 113.5
   },
   "result": "pass"
 }
