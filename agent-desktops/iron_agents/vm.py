@@ -13,7 +13,7 @@ import socket
 import subprocess
 import time
 
-from . import storage, units
+from . import approvals, storage, units
 from .config import RUN_DIR, ConfigError
 
 VM_USER = "iron-agent-vm"
@@ -194,17 +194,11 @@ def stop(agent, timeout=30):
     # Ask the guest's runner (root in the guest) over the control share; the
     # minimal agent image has no ACPI power-button handling, so system_powerdown
     # alone is ignored and the VM would only stop by SIGTERM after the timeout.
-    ctl = os.path.join(run_dir(agent), "control")
+    # Host-written like approval responses: the guest sees it as root-owned,
+    # which the agent user cannot forge.
     try:
-        tmp = os.path.join(ctl, ".shutdown.tmp")
-        with open(tmp, "w") as f:
-            f.write("poweroff\n")
-        # Host-written, like approval responses: 9p (mapped-xattr) shows it to
-        # the guest as root-owned, which the agent user cannot forge.
-        for attr in ("user.virtfs.uid", "user.virtfs.gid"):
-            os.setxattr(tmp, attr, (0).to_bytes(4, "little"))
-        os.chmod(tmp, 0o644)
-        os.replace(tmp, os.path.join(ctl, "shutdown"))
+        approvals.write_host_file(os.path.join(run_dir(agent), "control"), "shutdown", "poweroff\n",
+                                  virtfs_root=True)
     except OSError:
         pass
     try:

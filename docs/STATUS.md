@@ -181,7 +181,8 @@ installed on the host.
 | Full install with LUKS2 → unlock → GDM → desktop | pass on retry (see gaps) | `tests/vm/install-calamares.sh inst-full out/… full enable open yes` |
 | Root shell on an installed VM for scripted checks | helper | `tests/vm/installed-shell.sh NAME` |
 | Iron package source end to end | 16/16 | `tests/vm/test-updates.sh inst-lite BASE_DEBS NEW_DEBS` (two builds' `.deb` sets; the VM must have BASE installed) |
-| VM agent end to end (nested KVM) | 11/11 | `sudo iron-agent image build --vm` in the guest, then `tests/vm/test-agent-vm.sh inst-lite` |
+| VM agent end to end (nested KVM) | 11/11 (twice, before and after hardening the host-side writes) | `sudo iron-agent image build --vm` in the guest, then `tests/vm/test-agent-vm.sh inst-lite` |
+| Container agent, same workflow with the new runner | 11/11 | `tests/vm/test-agent-vm.sh inst-lite container` |
 
 Not repeated in run 3: the arm64 ISO and Raspberry Pi image were not rebuilt
 or re-booted (their rows above are from run 2), and nothing ran on physical
@@ -195,7 +196,11 @@ started before the GPU driver loaded; VM agents ignored ACPI power-off (every
 stop ended in SIGTERM after 30 s); stale approval requests resurfacing after a
 restart; `iron-agent stop` returning before the agent stopped; `image build`
 silently breaking existing VM agents' overlay disks; approval banners staying
-up after a decision.
+up after a decision. Security review of the diff: the service's root writes
+into agent-writable control directories (approval responses, and the new
+shutdown request) opened a fixed temp name and would follow a planted symlink;
+they now use `O_CREAT|O_EXCL|O_NOFOLLOW` and fd-based chmod/xattr (unit test
+added).
 
 Test-environment note: with two 4 GiB test VMs plus nested agent VMs, the host
 went 5 GB into swap and a nested QEMU hung in `kvm_async_pf_task_wait_schedule`

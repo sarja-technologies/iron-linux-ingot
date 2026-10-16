@@ -1,22 +1,22 @@
 #!/bin/bash
-# End-to-end test of a VM-backed Agent Desktop inside an installed Ingot VM
-# (nested KVM): start, guest readiness, instructions and their reported state,
+# End-to-end test of an Agent Desktop (VM-backed by default, or a container)
+# inside an installed Ingot VM (VM agents use nested KVM): start, guest readiness, instructions and their reported state,
 # an approval-gated root command, preview, export, persistence across a clean
 # stop/start, and clean shutdown timing.
 #
-#   tests/vm/test-agent-vm.sh NAME
+#   tests/vm/test-agent-vm.sh NAME [vm|container]
 #
 # NAME must be a running installed Ingot VM with Agent Desktops enabled, the
 # VM agent image built (`sudo iron-agent image build --vm`), the test user
 # logged in with the terminal focused, and a root serial shell
 # (tests/vm/installed-shell.sh). Agent commands are typed into the user's
 # terminal because polkit only authorises the active desktop session.
-# Results: tests/vm/results/NAME/agent-vm/.
+# Results: tests/vm/results/NAME/agent-BACKEND/.
 set -euo pipefail
-NAME="$1"
+NAME="$1" BACKEND="${2:-vm}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 V="python3 ${ROOT}/tests/vm/vmctl.py"
-W="${ROOT}/tests/vm/results/${NAME}/agent-vm"
+W="${ROOT}/tests/vm/results/${NAME}/agent-${BACKEND}"
 rm -rf "${W}"; mkdir -p "${W}"
 
 cat > "${W}/guest.sh" <<'EOF'
@@ -35,7 +35,7 @@ print(a['state'], a.get('guest_ready'), t.get('task'), t.get('state'), t.get('su
 ready() { for _ in $(seq 1 120); do j | grep -q '^running True' && return 0; sleep 2; done; return 1; }
 task_end() { # N: wait until task N is done/failed, print its state
     for _ in $(seq 1 90); do s=$(j); set -- $s; [ "$3" = "$N" ] && [ "$4" != working ] && { echo "$4"; return; }; sleep 1; done; echo timeout; }
-A=$(iron-agent create agent-vm-test --preset light --backend vm) && ok "create $A" || bad create
+A=$(iron-agent create agent-test --preset light --backend @BACKEND@) && ok "create $A" || bad create
 iron-agent start "$A"
 t0=$(date +%s); ready && ok "guest ready in $(( $(date +%s) - t0 )) s" || bad "guest never ready: $(j)"
 # Sent the moment the guest reports ready: the desktop may still be starting.
@@ -62,6 +62,7 @@ N=1; s=$(task_end); [ "$s" = "done" ] && j | grep -q persisted && ok "workspace 
 iron-agent stop "$A"; iron-agent delete "$A" && ok delete || bad delete
 echo TEST-END
 EOF
+sed -i "s/@BACKEND@/${BACKEND}/" "${W}/guest.sh"
 B=$(base64 -w0 "${W}/guest.sh")
 ${V} run "${NAME}" "echo ${B} | base64 -d > /tmp/agent-vm-test.sh; chmod 644 /tmp/agent-vm-test.sh; rm -f /tmp/agent-vm-test.log" --timeout 20 >/dev/null
 ${V} type "${NAME}" "sh /tmp/agent-vm-test.sh"; ${V} key "${NAME}" ret

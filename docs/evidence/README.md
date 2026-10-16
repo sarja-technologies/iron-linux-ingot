@@ -23,7 +23,7 @@ disk images stay in the git-ignored `tests/vm/results/`. See `docs/STATUS.md`.
 | `installed-lite-desktop.jpg` | installed **Lite** edition, first login: desktop, not the overview |
 | `luks-unlock-plymouth.png` | graphical Ingot LUKS unlock prompt, fresh install from the rebuilt run-3 ISO (was text mode) |
 | `updates-installed-vm.txt` | `tests/vm/test-updates.sh`: upgrade, rollback, untrusted key and hostile index against an installed VM, 16/16 |
-| `agent-vm-installed-vm.txt` | `tests/vm/test-agent-vm.sh`: VM-backed agent end to end, 11/11 |
+| `agent-vm-installed-vm.txt`, `agent-container-installed-vm.txt` | `tests/vm/test-agent-vm.sh`: VM-backed and container agents end to end, 11/11 each |
 | `vm-agent-tasks.jpg` | the VM agent's own desktop with task terminals (approved root command in task 3) |
 | `vm-agent-viewer.jpg` | the VM agent's desktop opened in the viewer on the Ingot desktop, live-agent count in the panel |
 | `tiling-two-monitors.png` | two-monitor tiling with real virtual-pointer drags (headless GNOME Shell) |

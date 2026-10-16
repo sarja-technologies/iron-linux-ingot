@@ -316,3 +316,24 @@ class ImageReplacementGuardTests(unittest.TestCase):
                 self.assertEqual(image.dependent_vm_disks("missing", state), [])
             finally:
                 image.IMAGE_DIR = old
+
+
+class HostFileWriteTests(unittest.TestCase):
+    """Root writes into agent-writable control directories must not follow planted links."""
+
+    def test_planted_symlinks_are_not_followed(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctl, victim = os.path.join(d, "control"), os.path.join(d, "victim")
+            os.makedirs(ctl)
+            with open(victim, "w") as f:
+                f.write("precious")
+            os.symlink(victim, os.path.join(ctl, f".shutdown.{os.getpid()}.tmp"))
+            os.symlink(victim, os.path.join(ctl, "shutdown"))
+            approvals.write_host_file(ctl, "shutdown", "poweroff\n")
+            with open(victim) as f:
+                self.assertEqual(f.read(), "precious")
+            self.assertFalse(os.path.islink(os.path.join(ctl, "shutdown")))
+            with open(os.path.join(ctl, "shutdown")) as f:
+                self.assertEqual(f.read(), "poweroff\n")
+            self.assertEqual(os.stat(os.path.join(ctl, "shutdown")).st_mode & 0o777, 0o644)
+            self.assertEqual(sorted(os.listdir(ctl)), ["shutdown"])
