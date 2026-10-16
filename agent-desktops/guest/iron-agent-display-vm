@@ -1,0 +1,27 @@
+#!/bin/sh
+# VM agents: X server on the VM's virtual screen (shown on the host through
+# QEMU's VNC socket), then the agent's desktop session as the `agent` user.
+# The VM itself is the isolation boundary; inside it the agent has no root.
+set -eu
+AUTH=/run/iron-agent/xauth
+install -d -m 0755 /run/iron-agent
+rm -f "$AUTH"
+(umask 077; : > "$AUTH")
+xauth -q -f "$AUTH" add :0 . "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+chown agent:agent "$AUTH"
+# udev loads virtio_gpu late on a busy host; Xorg started before it finds "no screens".
+for _ in $(seq 1 120); do ls /dev/dri/card* >/dev/null 2>&1 && break; sleep 0.5; done
+rm -f /tmp/.X11-unix/X0 /tmp/.X0-lock
+Xorg :0 vt7 -nolisten tcp -noreset -novtswitch -auth "$AUTH" -s 0 -dpms -logfile /var/log/Xorg.0.log &
+XPID=$!
+for _ in $(seq 1 100); do [ -S /tmp/.X11-unix/X0 ] && break; kill -0 "$XPID" 2>/dev/null || exit 1; sleep 0.1; done
+[ -S /tmp/.X11-unix/X0 ] || { echo "Xorg did not start (see /var/log/Xorg.0.log)" >&2; kill "$XPID"; exit 1; }
+runuser -u agent -- env -i HOME=/home/agent USER=agent LOGNAME=agent SHELL=/bin/bash LANG=C.UTF-8 \
+    PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin DISPLAY=:0 XAUTHORITY="$AUTH" \
+    /usr/lib/iron-agent/iron-agent-session --on-display &
+SPID=$!
+# Either side ending ends the unit; systemd restarts it.
+while kill -0 "$XPID" 2>/dev/null && kill -0 "$SPID" 2>/dev/null; do sleep 2; done
+kill "$SPID" "$XPID" 2>/dev/null || true
+wait 2>/dev/null || true
+exit 1

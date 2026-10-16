@@ -25,6 +25,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, "/usr/lib/iron-agents")
 
@@ -81,11 +82,16 @@ def main(argv):
         ap.add_argument("--vm", action="store_true")
         ap.add_argument("--runtime", default="")
         ap.add_argument("--browser", action="store_true")
+        ap.add_argument("--force", action="store_true", help="replace an image that VM agents still use")
         a = ap.parse_args(rest)
         if os.geteuid() != 0:
             sys.exit("iron-agent: building images needs root (sudo iron-agent image build ...)")
         from iron_agents import image
-        image.build(a.name, vm=a.vm, runtimes=[r for r in a.runtime.split(",") if r], browser=a.browser)
+        try:
+            image.build(a.name, vm=a.vm, runtimes=[r for r in a.runtime.split(",") if r], browser=a.browser,
+                        force=a.force)
+        except RuntimeError as e:
+            sys.exit(f"iron-agent: {e}")
     elif cmd == "list":
         agents = json.loads(call("ListAgents"))
         if not agents:
@@ -114,6 +120,17 @@ def main(argv):
         print(call("CreateAgent", "s", json.dumps(cfg)))
     elif cmd in ("start", "stop", "pause", "resume", "delete"):
         call({"delete": "DeleteAgent"}.get(cmd, cmd.capitalize()), "s", rest[0], out=False)
+        if cmd == "stop":
+            # The service stops agents in the background (VMs shut down cleanly);
+            # return once it is really stopped so "stop; delete" works.
+            deadline = time.monotonic() + 90
+            while time.monotonic() < deadline:
+                a = next((x for x in json.loads(call("ListAgents")) if x["id"] == rest[0]), None)
+                if not a or not a.get("live"):
+                    break
+                time.sleep(1)
+            else:
+                sys.exit(f"iron-agent: {rest[0]} is still stopping")
         print(f"{cmd}: {rest[0]}")
     elif cmd == "send":
         call("SendInstruction", "ss", rest[0], " ".join(rest[1:]), out=False)

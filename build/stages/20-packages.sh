@@ -51,6 +51,15 @@ stage_packages() {
     (cd "${INGOT_ROOT}" && git ls-files -co --exclude-standard -z | grep -zv '^build-area/' \
         | xargs -0 cp --parents -a -t "${builder}/src/ingot")
 
+    # Archive keys trusted by images: committed public keys plus, for development
+    # builds, this machine's local key (only in the builder copy, never committed).
+    ensure_signing_key
+    if [[ "${INGOT_TRUST_DEV_KEY:-1}" == 1 ]]; then
+        install -m644 "$(KEY_DIR)/archive.pub.gpg" "${builder}/src/ingot/packaging/archive-keys/zz-local-dev.gpg"
+    fi
+    ls "${builder}/src/ingot/packaging/archive-keys/"*.gpg >/dev/null 2>&1 \
+        || die "no archive key to trust: commit a public key to packaging/archive-keys/ or set INGOT_TRUST_DEV_KEY=1"
+
     # Unique, increasing version per build so apt upgrades existing systems/rootfs.
     # ("+bN" must not be used: dpkg treats it as a binNMU and strips it from ${source:Version}.)
     sed -i "1s/(\([^)]*\))/(\1+t$(date -u +%Y%m%d%H%M%S))/" "${builder}/src/ingot/debian/changelog"
@@ -78,29 +87,17 @@ stage_packages() {
 
 publish_repo() {
     # Built beside the live repo and swapped in atomically, so a build of another
-    # architecture that has the old repo bind-mounted is not disturbed.
+    # architecture that has the old repo bind-mounted is not disturbed. Uses the
+    # same publisher (tools/ingot-publish) as the hosted update repository.
     local debdir="$1" final; final="$(REPO_DIR)"
     local repo="${final}.new"
     ensure_signing_key
     log "publishing local APT repo ${final}"
     rm -rf --one-file-system "${repo}"
-    mkdir -p "${repo}/pool" "${repo}/dists/${INGOT_CODENAME}/main/binary-all"
-    cp "${debdir}"/*.deb "${repo}/pool/"
-    (
-        cd "${repo}" || exit 1
-        apt-ftparchive packages pool > "dists/${INGOT_CODENAME}/main/binary-all/Packages"
-        gzip -9kf "dists/${INGOT_CODENAME}/main/binary-all/Packages"
-        apt-ftparchive \
-            -o APT::FTPArchive::Release::Origin="Iron Linux" \
-            -o APT::FTPArchive::Release::Label="Iron Linux Ingot (local build)" \
-            -o APT::FTPArchive::Release::Suite="${INGOT_CODENAME}" \
-            -o APT::FTPArchive::Release::Codename="${INGOT_CODENAME}" \
-            -o APT::FTPArchive::Release::Architectures="all amd64 arm64" \
-            -o APT::FTPArchive::Release::Components="main" \
-            release "dists/${INGOT_CODENAME}" > "dists/${INGOT_CODENAME}/Release"
-        GNUPGHOME="$(KEY_DIR)" gpg --batch --yes --clearsign \
-            -o "dists/${INGOT_CODENAME}/InRelease" "dists/${INGOT_CODENAME}/Release"
-    )
+    "${INGOT_ROOT}/tools/ingot-publish" --repo "${repo}" --suite "${INGOT_CODENAME}" \
+        --gnupghome "$(KEY_DIR)" add "${debdir}"/*.deb >&2
+    "${INGOT_ROOT}/tools/ingot-publish" --repo "${repo}" --suite "${INGOT_CODENAME}" verify >&2
+    GNUPGHOME="$(KEY_DIR)" gpgconf --kill gpg-agent 2>/dev/null || true
     cp "$(KEY_DIR)/archive.pub.gpg" "${repo}/iron-archive-dev.gpg"
     local old
     for old in "${final}".old.*; do
@@ -108,6 +105,4 @@ publish_repo() {
     done
     [[ -d "${final}" ]] && mv "${final}" "${final}.old.$(date +%s)"
     mv "${repo}" "${final}"
-    repo="${final}"
-    find "${repo}/pool" -name '*.deb' -printf '    %f\n' | sort >&2
 }

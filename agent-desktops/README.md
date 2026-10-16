@@ -37,6 +37,12 @@ iron-agent outputs a1b2c3d4e5 ; iron-agent export a1b2c3d4e5 logs/task-001.log ~
 iron-agent open a1b2c3d4e5                                    # TigerVNC viewer
 ```
 
+VM agents' disks are copy-on-write overlays on the VM image, so `image build`
+refuses to replace an image while VM agents still use it (delete them first, or
+pass `--force` and recreate them). Each instruction runs in a visible terminal
+on the agent's desktop; it counts as done (or failed, by exit status) when the
+command ends, and the terminal stays open for you to read.
+
 ## What is enforced, and by what
 
 | Control | Container agents | VM agents |
@@ -83,7 +89,7 @@ bound to the SHA-256 of the request it answers and can be used once.
 | | Container | VM |
 |---|---|---|
 | Idle memory overhead | ~60–120 MiB (systemd + Xvnc + Openbox) | guest kernel + userspace, ~250–400 MiB, plus QEMU |
-| Start time | seconds | 10–40 s (KVM); minutes without KVM |
+| Start time | seconds | 10–40 s (KVM; 40–75 s measured for a 1-vCPU agent under nested KVM); minutes without KVM |
 | Isolation boundary | Linux kernel namespaces + cgroups (shared kernel) | hardware virtualization (separate kernel) |
 | Disk per agent | full copy of the base image (~1–2 GiB) | qcow2 overlay (only changes) |
 | Host folders | yes (idmapped) | not yet |

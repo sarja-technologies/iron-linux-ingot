@@ -1,0 +1,39 @@
+base 26.10~dev1+t20261015200454  new 26.10~dev1+t20261015201245
+PASS  VM has the base version installed
+PASS  iron-update status (unconfigured)
+PASS  verify: trusted repository accepted
+PASS  status reports the update
+PASS  upgrade ran
+PASS  upgraded to 26.10~dev1+t20261015201245
+PASS  versions lists the base version
+PASS  rollback dry run
+PASS  dry run changed nothing
+PASS  rollback ran
+PASS  rolled back to 26.10~dev1+t20261015200454
+PASS  verify: untrusted key rejected
+PASS  untrusted packages not visible to APT
+PASS  hostile bash 999.0 is not a candidate (candidate 5.3-2ubuntu1)
+PASS  ironic-evil (not an Iron package) refused
+PASS  real Iron packages still installable from it
+guest requests:
+      2 GET /good/dists/ingot/InRelease HTTP/1.1
+      1 GET /untrusted/dists/ingot/InRelease HTTP/1.1
+      1 GET /hostile/dists/ingot/main/binary-amd64/Packages.xz HTTP/1.1
+      1 GET /hostile/dists/ingot/main/binary-all/Packages.xz HTTP/1.1
+      1 GET /hostile/dists/ingot/InRelease HTTP/1.1
+      1 GET /good/pool/main/i/iron-shell/iron-shell_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-shell/iron-shell_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-settings/iron-settings_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-settings/iron-settings_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-desktop-settings/iron-desktop-settings_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-desktop-settings/iron-desktop-settings_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-branding/iron-branding_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-branding/iron-branding_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-base-files/iron-base-files_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-base-files/iron-base-files_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-archive-keyring/iron-archive-keyring_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-archive-keyring/iron-archive-keyring_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-agent-desktops/iron-agent-desktops_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/iron-agent-desktops/iron-agent-desktops_26.10%7edev1%2bt20261015200454_all.deb HTTP/1.1
+      1 GET /good/pool/main/i/ingot-desktop-lite/ingot-desktop-lite_26.10%7edev1%2bt20261015201245_all.deb HTTP/1.1
+0 failure(s); log /home/dembele/Documents/Iron-Linux/iron-linux-iron/tests/vm/results/inst-lite/updates/guest.log

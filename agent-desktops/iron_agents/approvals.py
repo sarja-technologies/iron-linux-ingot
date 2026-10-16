@@ -18,6 +18,34 @@ RID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 KINDS = ("tool", "elevate", "network", "message")
 
 
+def write_host_file(directory, name, text, owner=None, virtfs_root=False):
+    """Atomically write a host-side (root) file into an agent's control
+    directory. That directory is writable by the agent side (QEMU's user, or the
+    container's mapped root), so never follow or reuse what may already be there:
+    a planted symlink must not redirect a root write."""
+    tmp = os.path.join(directory, f".{name}.{os.getpid()}.tmp")
+    try:
+        os.unlink(tmp)
+    except FileNotFoundError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, text.encode("utf-8"))
+        if owner is not None:
+            os.fchown(fd, owner, owner)
+        if virtfs_root:
+            # VM agents see this file through 9p (security_model=mapped-xattr):
+            # QEMU reports ownership from these xattrs, which the guest can
+            # neither see nor set. They mark the file as host-written (root);
+            # the guest runner refuses responses not owned by root.
+            for attr in ("user.virtfs.uid", "user.virtfs.gid"):
+                os.setxattr(fd, attr, (0).to_bytes(4, "little"))
+        os.fchmod(fd, 0o644)
+    finally:
+        os.close(fd)
+    os.replace(tmp, os.path.join(directory, name))
+
+
 class ApprovalQueue:
     def __init__(self):
         self.pending = {}  # request_id -> request dict (with agent_id)
@@ -73,18 +101,13 @@ class ApprovalQueue:
             new.append(req)
         return new
 
-    def decide(self, request_id, allow, control_dir, uid_owner_of_dir=None):
+    def decide(self, request_id, allow, control_dir, uid_owner_of_dir=None, virtfs_root=False):
         req = self.pending.pop(request_id, None)
         if not req:
             raise KeyError("no such pending request")
         resp_dir = os.path.join(control_dir, "responses")
-        tmp = os.path.join(resp_dir, f".{req['rid']}.tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"allow": bool(allow), "decided": time.time(), "request_sha256": req["sha256"]}, f)
-        if uid_owner_of_dir is not None:
-            os.chown(tmp, uid_owner_of_dir, uid_owner_of_dir)
-        os.chmod(tmp, 0o644)
-        os.replace(tmp, os.path.join(resp_dir, f"{req['rid']}.json"))
+        data = json.dumps({"allow": bool(allow), "decided": time.time(), "request_sha256": req["sha256"]})
+        write_host_file(resp_dir, f"{req['rid']}.json", data, uid_owner_of_dir, virtfs_root)
         return req
 
     def for_agent(self, agent_id):

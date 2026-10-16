@@ -25,7 +25,8 @@ jobs:
         run: |
           apt-get update -q
           DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
-            make shellcheck python3 python3-gi python3-pil gjs libglib2.0-bin libxml2-utils ca-certificates
+            make shellcheck python3 python3-gi python3-pil gjs libglib2.0-bin libxml2-utils ca-certificates \
+            gpg gpgv gpg-agent apt-utils dpkg-dev
       - run: make check
 
   shell:
@@ -61,6 +62,14 @@ jobs:
           apt-get update -q
           DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends build-essential devscripts equivs
           mk-build-deps -i -r -t "apt-get -y -q --no-install-recommends" debian/control
+          # No production archive key is committed yet: CI packages trust a
+          # throwaway key, so these artifacts are for testing only.
+          if ! ls packaging/archive-keys/*.gpg >/dev/null 2>&1; then
+            apt-get install -y -q --no-install-recommends gpg gpg-agent
+            export GNUPGHOME="$(mktemp -d)"
+            gpg --batch --pinentry-mode loopback --passphrase '' --quick-gen-key "Iron CI throwaway" ed25519 sign 1d
+            gpg --batch --export > packaging/archive-keys/zz-ci-throwaway.gpg
+          fi
           dpkg-buildpackage -b -us -uc
           mkdir -p debs && mv ../*.deb debs/
       - uses: actions/upload-artifact@v4

@@ -284,3 +284,56 @@ class RFBTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImageReplacementGuardTests(unittest.TestCase):
+    """Rebuilding an image must not pull the base out from under VM agent overlays."""
+
+    def test_dependent_vm_disks(self):
+        import shutil
+        import subprocess
+        from iron_agents import image
+        if not shutil.which("qemu-img"):
+            self.skipTest("qemu-img not installed")
+        with tempfile.TemporaryDirectory() as d:
+            images, state = os.path.join(d, "images"), os.path.join(d, "state")
+            os.makedirs(os.path.join(images, "base"))
+            os.makedirs(os.path.join(images, "other"))
+            for img in ("base", "other"):
+                subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", os.path.join(images, img, "disk.qcow2"), "1G"],
+                               check=True)
+            for aid, img in (("a1", "base"), ("a2", "other"), ("a3", "base")):
+                os.makedirs(os.path.join(state, aid))
+                subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b",
+                                os.path.join(images, img, "disk.qcow2"), os.path.join(state, aid, "disk.qcow2"), "2G"],
+                               check=True)
+            os.makedirs(os.path.join(state, "c1"))  # container agent: no disk.qcow2
+            old = image.IMAGE_DIR
+            image.IMAGE_DIR = images
+            try:
+                self.assertEqual(image.dependent_vm_disks("base", state), ["a1", "a3"])
+                self.assertEqual(image.dependent_vm_disks("other", state), ["a2"])
+                self.assertEqual(image.dependent_vm_disks("missing", state), [])
+            finally:
+                image.IMAGE_DIR = old
+
+
+class HostFileWriteTests(unittest.TestCase):
+    """Root writes into agent-writable control directories must not follow planted links."""
+
+    def test_planted_symlinks_are_not_followed(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctl, victim = os.path.join(d, "control"), os.path.join(d, "victim")
+            os.makedirs(ctl)
+            with open(victim, "w") as f:
+                f.write("precious")
+            os.symlink(victim, os.path.join(ctl, f".shutdown.{os.getpid()}.tmp"))
+            os.symlink(victim, os.path.join(ctl, "shutdown"))
+            approvals.write_host_file(ctl, "shutdown", "poweroff\n")
+            with open(victim) as f:
+                self.assertEqual(f.read(), "precious")
+            self.assertFalse(os.path.islink(os.path.join(ctl, "shutdown")))
+            with open(os.path.join(ctl, "shutdown")) as f:
+                self.assertEqual(f.read(), "poweroff\n")
+            self.assertEqual(os.stat(os.path.join(ctl, "shutdown")).st_mode & 0o777, 0o644)
+            self.assertEqual(sorted(os.listdir(ctl)), ["shutdown"])

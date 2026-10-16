@@ -1,6 +1,6 @@
 # Ingot status — what works, how it was verified, what does not yet
 
-Last updated: 2026-10-15 (development run 1). Legend:
+Last updated: 2026-10-16 (development run 3; see "Run 3" at the end for what changed). Legend:
 **Validated** = exercised end-to-end in this repo with evidence ·
 **Implemented** = built and unit/structurally checked, not exercised end-to-end ·
 **Experimental** = partly working, known gaps · **Planned** = not implemented.
@@ -14,9 +14,9 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 |---|---|---|
 | Reproducible builder (debootstrap → packages → system → live → rpi), one tree for both arches | Validated | amd64 + arm64 full builds |
 | Signed local Ingot APT repo, per-build versions | Validated | builds |
-| amd64 ISO (UEFI shim→signed GRUB, BIOS hybrid) | Validated (UEFI under OVMF) | `results/live-amd64/report.json` — 17/17 checks |
+| amd64 ISO (UEFI shim→signed GRUB, BIOS hybrid) | Validated (UEFI under OVMF) | `results/live-amd64/report.json` — 15/15 checks (re-run on the run-3 ISO) |
 | amd64 BIOS boot path | Implemented | ISO structure only |
-| Secure Boot boot with Microsoft keys enrolled (OVMF secboot + MS vars) | Validated — guest reports Secure Boot enabled | `results/live-amd64-sb/report.json` 18/18 |
+| Secure Boot boot with Microsoft keys enrolled (OVMF secboot + MS vars) | Validated — guest reports Secure Boot enabled | `results/live-amd64-sb/report.json` 16/16 (re-run on the run-3 ISO) |
 | arm64 UEFI ISO | Validated in emulation (see "ARM64") | `results/live-arm64-manual/` |
 | Raspberry Pi 4/5 image | Built, **not booted** (see "Raspberry Pi") | `out/*rpi*.img.xz` |
 | `INGOT_SNAPSHOT` reproducible pinning | Implemented, not exercised | |
@@ -30,9 +30,9 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 | Ingot GDM theme (gresource alternative) + wordmark | Validated | `results/install-amd64/step-23-gdm.png` |
 | Ingot wallpapers / defaults (dark, Inter, dock bottom intellihide) | Validated | live report, screenshots |
 | No desktop cube, no third-party extensions | Validated | live report |
-| Plymouth Ingot theme | Validated at live shutdown; **text-mode LUKS prompt seen at installed boot in VM** (likely early-KMS timing in QEMU) | install VMs |
-| Terminal palette | Gap: Ptyxis keeps Ubuntu's purple palette | screenshot |
-| GNOME opens the overview at login (dock `disable-overview-on-startup` not effective) | Gap | screenshots |
+| Plymouth Ingot theme | Validated at live shutdown and, after a fix, for the **graphical LUKS unlock prompt** at installed boot (cause was dangling theme symlinks in the initramfs, not KMS timing) | `docs/evidence/luks-unlock-plymouth.png` |
+| Terminal palette | Validated: neutral dark palette in Ptyxis on an installed system | `results/inst-lite/s14-terminal.png` |
+| Login lands on the desktop, not the overview | Validated (installed Lite and Full) | `docs/evidence/installed-lite-desktop.jpg` |
 
 ## Tiling (Iron Tiling)
 
@@ -40,10 +40,10 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 |---|---|---|
 | 2 columns, 3 columns, 2×2, 3×3 | Validated (real GNOME Shell 50, real windows) | `tests/shell/run-shell-tests.sh` 16/16 |
 | Gaps / margins, live reflow | Validated | same |
-| Per-workspace + per-monitor persistence (GSettings) | Validated (persistence); multi-monitor **not exercised** (single virtual monitor) | same |
+| Per-workspace + per-monitor persistence (GSettings) | Validated, including two virtual monitors and dragging a window between them | same + `shell-test-pointer.sh`; `docs/evidence/tiling-two-monitors.png` |
 | Resizable tiles (edge drag moves the boundary, neighbours follow) | Validated (programmatic resize + grab-end) | same |
 | Keyboard layout selection / swap / float | Implemented (swap validated) | same |
-| Drag-to-snap overlay with modifier / edge snap | Implemented; geometry unit-tested (85 checks); **no real pointer-drag test** | `tests/unit/test-tiling-layout.js` |
+| Drag-to-snap overlay with modifier / edge snap | Validated with real virtual-pointer drags in headless GNOME Shell (Ctrl-drag snap, edge snap, snap-back); not yet on a physical mouse | `tests/shell/shell-test-pointer.sh` 14/14 |
 | Iron Settings → Tiling page | Validated (renders, bound to GSettings) | `results/settings/settings-tiling.png` |
 
 ## Installer, updates, recovery
@@ -55,14 +55,15 @@ serial logs, `report.json`), produced by the commands in `docs/BUILD.md`.
 | Users, hostname template, sudo | Validated | |
 | Live packages removed after install | Validated | `dpkg -l casper calamares` empty |
 | Edition: Full | Validated | install 1 |
-| Edition: Lite | **Bug found** in a second real install: the Lite package removal failed silently inside Calamares' chroot (no /dev/pts, errors were suppressed). Script fixed (devpts, no pty, logged, per-package fallback); **fix not yet re-validated** | `results/install2/` |
+| Edition: Lite | Validated after the fix: `ingot-desktop`, GNOME Software, Flatpak, CUPS, Calculator, System Monitor, File Roller and Baobab removed in one batch (no fallback needed), `ingot-desktop-lite` kept, Agent Desktops kept and enabled, `dpkg --audit` clean, no failed units; 4.4 GB used, ~960 MiB RAM at the desktop | `results/inst-lite/` |
 | Agent Desktops opt-in in installer | Validated after fix (`enabled = true` in the installed Lite system) | install 2 |
 | Drivers option: open-only and recommended | Both ran in VM installs; NVIDIA path not exercised | |
 | Clean reboot from the live session (Ingot Plymouth splash, "remove the medium") | Validated | `results/install2/s8.png` |
-| Calamares "not connected to the Internet" warning | Gap: shown although networking works (connectivity URL check) | |
+| Calamares "not connected to the Internet" warning | Fixed and validated: not shown on the welcome page with working networking | `results/inst-lite/s01-welcome.png` |
 | Manual partitioning, dual boot | Implemented (Calamares), not exercised | |
 | Updates: Ubuntu archives, unattended security updates, GNOME Software | Implemented (standard Ubuntu mechanisms) | |
-| **Hosted Ingot APT repository** | **Planned** — installed systems do not yet receive Ingot package updates | |
+| Signed Iron package source (`ingot-publish`, `iron-archive-keyring`, `iron-update`) | **Validated locally** against an installed VM: upgrade, rollback (dry run + apply), untrusted key refused, validly signed hostile index cannot replace `bash` or add non-Iron packages — 16/16 (see "Updates") | `docs/evidence/updates-installed-vm.txt` |
+| **Hosted Ingot APT repository** | **Not deployed** — needs a public static host and an offline production key (owner decisions, `docs/UPDATES.md`) | |
 | Recovery-mode options (reset graphics, disable agents), safe-graphics boot entry | Implemented, not exercised | |
 
 ## Agent Desktops
@@ -87,10 +88,13 @@ Validated inside an installed Ingot VM (amd64, nested KVM):
 | Shared folders (idmapped), live revoke | Implemented + unit-tested; **not exercised in VM** |
 | Internet mode (pasta) | Implemented; **not exercised** |
 | GPU render-node sharing | Implemented; **not exercised** (no GPU in VM) |
-| Iron Settings Agent Desktops page / panel indicator against a live daemon | Implemented; page rendered without daemon only |
+| Panel indicator against a live daemon (live count, approval and finished notifications) | Validated in the installed VM |
+| Iron Settings Agent Desktops page against a live daemon | Implemented; page rendered without daemon only |
 | Claude Code / Codex runtimes, managed approval hook | Implemented; **not exercised** (needs accounts) |
 | VM agents: boot own kernel, cgroup cap (RAM+384 MiB), QEMU as unprivileged user, console preview, 9p control channel | Validated |
-| VM agents: visible agent desktop + instruction execution | **Experimental — not working yet** (the in-guest Xvnc session is not what QEMU displays; the runner now reports such tasks as failed instead of done) |
+| VM agents: visible agent desktop (Xorg on the VM's virtio GPU via QEMU VNC), viewer on the main desktop | Validated (`docs/evidence/vm-agent-viewer.jpg`) |
+| VM agents: instructions, done/failed by exit status, approval-gated root command, preview, export, clean stop (6 s), persistence across restart | Validated — `tests/vm/test-agent-vm.sh` 11/11 (`docs/evidence/agent-vm-installed-vm.txt`) |
+| Approval banners withdrawn when decided elsewhere (CLI/Settings) | Validated (`results/inst-lite/agent-vm/after-approve.png`) |
 | VM shared folders, VM GPU | Planned |
 
 Bugs found and fixed during validation are listed in the git history
@@ -128,8 +132,12 @@ emulate a Pi 4/5 with display and no hardware was available.
 `.github/workflows/ci.yml` (lint/unit, headless GNOME Shell, package build,
 manual ISO). **Not run**: GitHub refused to start jobs for the private
 repository ("recent account payments have failed or your spending limit needs
-to be increased"). All the same checks pass locally (`make check`,
-`tests/shell/run-shell-tests.sh`).
+to be increased"). Re-checked 2026-10-16: the latest runs (38727059129,
+38719428532) failed in 2–4 s with that annotation and no job executed, so **CI
+has never run** and nothing here claims it passes. All the same checks pass
+locally (`make check`, `tests/shell/run-shell-tests.sh`). GitHub also warns
+that `ubuntu-latest` moves to Ubuntu 26 from 2026-10-19. Needs: the account
+owner to fix billing (or make the repository public).
 
 ## Performance
 
@@ -138,10 +146,63 @@ session reaches a running GNOME desktop with **885 MiB used**; boot to login
 prompt 88 s including the live-media integrity check. **No baseline Ubuntu
 comparison has been run yet**, so no "faster/lighter than Ubuntu" claim is made.
 
-## Known gaps found during validation (not yet fixed)
+## Known gaps (open)
 
-* iron-hwprofile treats virtio-gpu without virgl as GPU-accelerated.
-* Ptyxis uses Ubuntu's purple palette; GNOME opens the overview at login.
-* The Calamares connectivity warning appears although the network works.
-* The installer writes an Arch-style `cryptdevice=` kernel parameter (harmless:
-  Ubuntu unlocks via crypttab).
+* **Encrypted install, intermittent:** one of three Full+LUKS installs in run 3
+  failed at "create partition" — the LUKS header was written with a passphrase
+  that was not the one in the fields (verified with `cryptsetup
+  --test-passphrase`; typing into the guest was correct and cryptsetup's stdin
+  handling was checked separately). The retry with the same ISO and script
+  succeeded, and so did a third install from the rebuilt ISO. Not reproduced since; cause unknown (Calamares 3.3.14 / KPMcore
+  25.12). Evidence: `results/inst-full-fail1/`. Reproduce:
+  `tests/vm/install-calamares.sh inst-full out/<iso> full enable open yes`.
+* `/etc/crypttab` written by Calamares carries an Arch (mkinitcpio) comment
+  header; harmless, cosmetic.
+* VM agents: the preview grab is 1280×720 while the agent screen is 1600×900;
+  no panel (tint2) visible on the VM agent desktop.
+* The Iron Settings Agent Desktops page has still not been exercised against a
+  running daemon (the CLI and panel indicator have).
+* Shared folders, Internet mode and GPU sharing for container agents, and
+  Claude Code / Codex runtimes, remain unexercised (see Agent Desktops).
+
+## Run 3 (2026-10-16): what was done and how to reproduce
+
+All in disposable QEMU/KVM guests on the development machine; nothing was
+installed on the host.
+
+| Check | Result | Command |
+|---|---|---|
+| Offline checks (lint, 48 Python + 85 JS unit checks) | pass | `make check` |
+| Rebuilt amd64 ISO from this branch (388 s incremental) | pass | `sudo build/ingot-build --arch amd64 packages system live` |
+| Live boot on the rebuilt ISO: UEFI 15/15, Secure Boot (MS keys) 16/16 | pass | `python3 tests/vm/test_live_boot.py --arch amd64 --iso out/… [--secureboot]` |
+| Fresh Full+LUKS install from the rebuilt ISO (agents off, drivers auto): graphical unlock prompt, no `cryptdevice=`, hwprofile → software rendering → animations off, no failed units | pass | `tests/vm/install-calamares.sh inst-full3 out/… full disable auto yes`, then `tests/vm/installed-shell.sh inst-full3` |
+| Headless GNOME Shell 50: tiling 16/16, pointer + two monitors 14/14 | pass | `tests/shell/run-shell-tests.sh` |
+| Lite install (agents on, drivers auto, no encryption) → first boot → login | pass | `tests/vm/install-calamares.sh inst-lite out/iron-ingot-26.10-dev-amd64-full.iso lite enable auto no` |
+| Full install with LUKS2 → unlock → GDM → desktop | pass on retry (see gaps) | `tests/vm/install-calamares.sh inst-full out/… full enable open yes` |
+| Root shell on an installed VM for scripted checks | helper | `tests/vm/installed-shell.sh NAME` |
+| Iron package source end to end | 16/16 | `tests/vm/test-updates.sh inst-lite BASE_DEBS NEW_DEBS` (two builds' `.deb` sets; the VM must have BASE installed) |
+| VM agent end to end (nested KVM) | 11/11 (twice, before and after hardening the host-side writes) | `sudo iron-agent image build --vm` in the guest, then `tests/vm/test-agent-vm.sh inst-lite` |
+| Container agent, same workflow with the new runner | 11/11 | `tests/vm/test-agent-vm.sh inst-lite container` |
+
+Not repeated in run 3: the arm64 ISO and Raspberry Pi image were not rebuilt
+or re-booted (their rows above are from run 2), and nothing ran on physical
+hardware.
+
+Bugs found by these runs and fixed (details in the commit messages):
+dangling Plymouth theme links in the initramfs (text LUKS prompt);
+`iron-hwprofile` reading the virtio-pci transport instead of the GPU driver;
+agent tasks reported "working" until someone pressed Enter; VM agent Xorg
+started before the GPU driver loaded; VM agents ignored ACPI power-off (every
+stop ended in SIGTERM after 30 s); stale approval requests resurfacing after a
+restart; `iron-agent stop` returning before the agent stopped; `image build`
+silently breaking existing VM agents' overlay disks; approval banners staying
+up after a decision. Security review of the diff: the service's root writes
+into agent-writable control directories (approval responses, and the new
+shutdown request) opened a fixed temp name and would follow a planted symlink;
+they now use `O_CREAT|O_EXCL|O_NOFOLLOW` and fd-based chmod/xattr (unit test
+added).
+
+Test-environment note: with two 4 GiB test VMs plus nested agent VMs, the host
+went 5 GB into swap and a nested QEMU hung in `kvm_async_pf_task_wait_schedule`
+(the test VM waiting for the host to page memory in). That is a property of the
+test machine, not Ingot; run nested-agent tests with one test VM at a time.

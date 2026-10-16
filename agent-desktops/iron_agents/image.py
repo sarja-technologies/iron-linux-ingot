@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import time
 
-from .config import IMAGE_DIR
+from .config import IMAGE_DIR, STATE_DIR
 
 GUEST_PACKAGES = [
     "systemd-sysv", "dbus", "dbus-x11", "ca-certificates", "locales", "tzdata",
@@ -20,7 +20,9 @@ GUEST_PACKAGES = [
     "python3", "git", "curl", "wget", "less", "nano", "unzip", "zstd", "jq", "ripgrep",
     "iproute2", "iputils-ping", "openssh-client", "xdg-utils", "xclip",
 ]
-VM_PACKAGES = ["linux-image-virtual", "initramfs-tools", "e2fsprogs"]
+# VM agents draw on their own virtual screen: a real X server instead of Xvnc.
+VM_PACKAGES = ["linux-image-virtual", "initramfs-tools", "e2fsprogs",
+               "xserver-xorg-core", "xserver-xorg-input-libinput", "xauth"]
 NODE_PACKAGES = ["nodejs", "npm"]
 GUEST_FILES = "/usr/share/iron-agents/guest"
 RUNTIMES = "/usr/share/iron-agents/runtimes"
@@ -68,7 +70,34 @@ class Mounts:
             subprocess.run(["umount", "-l", p])
 
 
-def build(name="base", vm=False, runtimes=(), browser=False, mirror=None):
+def dependent_vm_disks(name, state_dir=STATE_DIR):
+    """VM agent disks that are qcow2 overlays on this image. Replacing the image
+    under them would silently corrupt them (container agents copy the rootfs)."""
+    base = os.path.realpath(os.path.join(IMAGE_DIR, name, "disk.qcow2"))
+    found = []
+    try:
+        ids = os.listdir(state_dir)
+    except OSError:
+        return found
+    for aid in sorted(ids):
+        disk = os.path.join(state_dir, aid, "disk.qcow2")
+        if not os.path.isfile(disk):
+            continue
+        r = subprocess.run(["qemu-img", "info", "-U", "--output=json", disk], capture_output=True, text=True)
+        try:
+            backing = json.loads(r.stdout).get("full-backing-filename") or json.loads(r.stdout).get("backing-filename")
+        except ValueError:
+            continue
+        if backing and os.path.realpath(backing) == base:
+            found.append(aid)
+    return found
+
+
+def build(name="base", vm=False, runtimes=(), browser=False, mirror=None, force=False):
+    users = dependent_vm_disks(name)
+    if users and not force:
+        raise RuntimeError(f"VM agents {', '.join(users)} use image '{name}' as their disk base; delete them "
+                           "first (or rebuild with --force and recreate them: their disks will not boot)")
     arch = subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True).stdout.strip()
     suite = _host_release()
     mirror = mirror or _mirror(arch)
@@ -102,7 +131,7 @@ def build(name="base", vm=False, runtimes=(), browser=False, mirror=None):
             if spec.get("install"):
                 chroot(root, *spec["install"])
         chroot(root, "systemctl", "enable", "iron-agent-display.service", "iron-agent-runner.service",
-               "iron-agent-vm-setup.service")
+               "iron-agent-vm-setup.service", *(["iron-agent-display-vm.service"] if vm else []))
         chroot(root, "systemctl", "mask", "systemd-networkd-wait-online.service", "getty@tty1.service")
         os.unlink(os.path.join(root, "usr/sbin/policy-rc.d"))
         chroot(root, "apt-get", "clean")
@@ -134,7 +163,7 @@ def _install_firefox(root):
 def _install_guest_files(root):
     g = GUEST_FILES
     os.makedirs(os.path.join(root, "usr/lib/iron-agent"), exist_ok=True)
-    for f in ("iron-agent-runner", "iron-agent-session", "iron-agent-vm-setup"):
+    for f in ("iron-agent-runner", "iron-agent-session", "iron-agent-vm-setup", "iron-agent-display-vm"):
         shutil.copy(os.path.join(g, f), os.path.join(root, "usr/lib/iron-agent", f))
     for f in ("iron-approve", "iron-elevate"):
         shutil.copy(os.path.join(g, f), os.path.join(root, "usr/bin", f))

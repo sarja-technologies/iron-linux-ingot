@@ -1,0 +1,11 @@
+PASS  create a0255ff077f
+PASS  guest ready in 13 s
+PASS  task 1 done
+PASS  task 2 (exit 1) reported failed
+PASS  approval requested: a0255ff077f-10230194a3fa55f0
+PASS  approved root command ran
+PASS  preview
+PASS  export
+PASS  clean stop in 1 s
+PASS  workspace persisted across restart
+PASS  delete

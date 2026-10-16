@@ -45,6 +45,7 @@ class Service:
         self.agents = self.store.load_all()
         self.approvals = ApprovalQueue()
         self.finished_seen = {}
+        self.started = {}  # agent id -> (monotonic start time, hardware-accelerated)
         self.last_activity = time.monotonic()
         self.bus = None
         self._reconcile()
@@ -152,7 +153,20 @@ class Service:
         d = a.to_dict()
         d["usage"] = units.usage(a.id) if a.state in LIVE else {}
         d["pending_approvals"] = len(self.approvals.for_agent(a.id))
+        if a.state in LIVE:
+            # What the in-agent runner reports (task number/state/summary); absent
+            # until the guest is up, which for VM agents means it is still booting.
+            d["task"] = self._runner_status(a)
+            d["guest_ready"] = d["task"] is not None
         return d
+
+    def _runner_status(self, a):
+        try:
+            with open(os.path.join(self._run_dir(a), "control", "status.json"), encoding="utf-8") as f:
+                st = json.loads(f.read(8192))
+        except (OSError, ValueError):
+            return None
+        return {k: st.get(k) for k in ("task", "state", "summary", "updated")}
 
     def m_GetAgent(self, sender, agent_id):
         return json.dumps(self._public(self._agent_for(sender, agent_id)))
@@ -235,8 +249,27 @@ class Service:
 
     def _start_worker(self, a):
         try:
-            backend(a).start(self.store, a, self.host)
+            # A status file left from the previous run must not look like a live guest.
+            ctl = os.path.join(self._run_dir(a), "control")
+            try:
+                os.unlink(os.path.join(ctl, "status.json"))
+            except OSError:
+                pass
+            # Approval requests from the previous run can no longer be answered
+            # (the process that asked is gone); do not offer them again.
+            for sub in ("requests", "responses"):
+                try:
+                    names = os.listdir(os.path.join(ctl, sub))
+                except OSError:
+                    continue
+                for fn in names:
+                    try:
+                        os.unlink(os.path.join(ctl, sub, fn))
+                    except OSError:
+                        pass
+            info = backend(a).start(self.store, a, self.host) or {}
             with self.lock:
+                self.started[a.id] = (time.monotonic(), info.get("kvm", True))
                 self._save(a, "running")
         except Exception as e:  # noqa: BLE001
             log.exception("start %s failed", a.id)
@@ -295,6 +328,8 @@ class Service:
     def m_GetDisplay(self, sender, agent_id):
         a = self._agent_for(sender, agent_id)
         sock = os.path.join(self._run_dir(a), "display", "vnc.sock")
+        if a.backend == "vm" and a.state in LIVE:
+            vm.share_display(a)
         return json.dumps({"vnc_socket": sock, "available": os.path.exists(sock),
                            "viewer_uri": f"vnc+unix://{sock}"})
 
@@ -381,9 +416,13 @@ class Service:
             raise UserError("no such pending request")
         a = self._agent_for(sender, req["agent_id"])
         owner = a.uid_base if a.backend == "container" else vm._vm_ids()[0]
-        self.approvals.decide(request_id, allow, os.path.join(self._run_dir(a), "control"), owner)
+        self.approvals.decide(request_id, allow, os.path.join(self._run_dir(a), "control"), owner,
+                              virtfs_root=a.backend == "vm")
         if a.state == "waiting" and not self.approvals.for_agent(a.id):
             self._save(a, "running")
+        else:
+            # Clients (panel notifications, Iron Settings) withdraw the request.
+            self.emit("AgentChanged", a.id, a.state)
 
     def m_CreateSnapshot(self, sender, agent_id, name):
         a = self._agent_for(sender, agent_id)
@@ -420,12 +459,26 @@ class Service:
                     if a.state == "running":
                         self._save(a, "waiting")
                 self._check_finished(a, ctl)
+                self._check_guest_boot(a, ctl)
             idle_for = time.monotonic() - self.last_activity
             if not live and idle_for > self.gcfg.idle_exit_seconds:
                 log.info("idle; exiting")
                 self.loop.quit()
                 return False
         return True
+
+    def _check_guest_boot(self, a, ctl):
+        """Tell the owner when a VM guest never comes up, with its console output."""
+        if a.backend != "vm" or a.id not in self.started or os.path.exists(os.path.join(ctl, "status.json")):
+            return
+        t0, kvm = self.started[a.id]
+        limit = 240 if kvm else 1500
+        waited = time.monotonic() - t0
+        if waited > limit and not a.state_reason.startswith("guest not ready"):
+            tail = [l for l in vm.guest_console_log(a).splitlines() if l.strip()][-3:]
+            a.state_reason = (f"guest not ready after {int(waited)} s"
+                              + (": " + " | ".join(t.strip()[:160] for t in tail) if tail else ""))
+            self._save(a)
 
     def _check_finished(self, a, ctl):
         """The in-agent runner writes status.json {"task": n, "state": "done", "summary": ...}."""
@@ -435,9 +488,10 @@ class Service:
         except (OSError, ValueError):
             return
         key = (st.get("task"), st.get("state"))
-        if st.get("state") == "done" and self.finished_seen.get(a.id) != key:
+        if st.get("state") in ("done", "failed") and self.finished_seen.get(a.id) != key:
             self.finished_seen[a.id] = key
-            self.emit("AgentFinished", a.id, str(st.get("summary", ""))[:300])
+            prefix = "" if st["state"] == "done" else "FAILED: "
+            self.emit("AgentFinished", a.id, (prefix + str(st.get("summary", "")))[:300])
 
 
 def main():
