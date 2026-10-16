@@ -96,10 +96,12 @@ install-iron-branding: branding
 	install -Dm644 $(B)/iron-ingot-wordmark.png $(DESTDIR)/usr/share/pixmaps/iron-ingot-wordmark.png
 	install -Dm644 branding/src/iron-ingot.plymouth.in $(DESTDIR)/usr/share/plymouth/themes/iron-ingot/iron-ingot.plymouth
 	install -Dm644 $(B)/watermark.png $(DESTDIR)/usr/share/plymouth/themes/iron-ingot/watermark.png
-	# Reuse Ubuntu's maintained spinner frames and prompt assets.
+	# Reuse Ubuntu's spinner frames and prompt assets as real copies: the
+	# initramfs hook copies only the active theme's directory, so symlinks into
+	# ../spinner/ dangle there and Plymouth falls back to a text LUKS prompt.
 	cd /usr/share/plymouth/themes/spinner && for f in *.png; do \
 		[ "$$f" = watermark.png ] && continue; \
-		ln -sf ../spinner/$$f $(abspath $(DESTDIR))/usr/share/plymouth/themes/iron-ingot/$$f; done
+		install -m644 $$f $(abspath $(DESTDIR))/usr/share/plymouth/themes/iron-ingot/$$f; done
 
 install-iron-shell:
 	install -d $(DESTDIR)/usr/share/gnome-shell/extensions

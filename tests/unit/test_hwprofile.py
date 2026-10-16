@@ -101,6 +101,32 @@ class HwProfileTests(unittest.TestCase):
                         **g}, l)
         self.assertTrue(r["gpu_acceleration"])
 
+    def virtio_pci_gpu(self, features):
+        # Real layout (observed in an Ingot VM): card -> PCI device bound to
+        # virtio-pci; virtio_gpu is bound to device/virtio0 below it.
+        files = {"/sys/class/drm/card1/device/vendor": "0x1af4", "/sys/class/drm/card1/device/device": "0x1050",
+                 "/sys/class/drm/card1/device/boot_vga": "1",
+                 "/sys/class/drm/card1/device/virtio0/features": features,
+                 "/proc/cpuinfo": "processor : 0\n", "/proc/meminfo": "MemTotal: 4000000 kB\n",
+                 "/dev/dri/renderD128": ""}
+        links = {"/sys/class/drm/card1/device/driver": "/sys/bus/pci/drivers/virtio-pci",
+                 "/sys/class/drm/card1/device/virtio0/driver": "/sys/bus/virtio/drivers/virtio_gpu"}
+        return self.build(files, links)
+
+    def test_virtio_pci_gpu_without_virgl_is_software(self):
+        r = self.virtio_pci_gpu("0100000000000000000000000000110010000000100000000000000000000000")
+        self.assertEqual(r["gpus"][0]["driver"], "virtio_gpu")
+        self.assertTrue(r["gpus"][0]["software_only"])
+        self.assertFalse(r["gpu_acceleration"])
+
+    def test_virtio_pci_gpu_with_virgl_is_accelerated(self):
+        r = self.virtio_pci_gpu("1100000000000000000000000000110010000000100000000000000000000000")
+        self.assertTrue(r["gpu_acceleration"])
+
+    def test_virtio_pci_gpu_with_context_init_is_accelerated(self):
+        r = self.virtio_pci_gpu("0101100000000000000000000000110010000000100000000000000000000000")
+        self.assertTrue(r["gpu_acceleration"])
+
     def test_arm64_pi_low_tier(self):
         g, l = gpu("card1", "", "", "v3d")
         r = self.build({

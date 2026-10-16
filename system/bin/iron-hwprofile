@@ -76,10 +76,15 @@ def detect_memory(root):
     return {"total_mib": int(m.group(1)) // 1024 if m else 0}
 
 
-def virtio_gpu_3d(root, card):
+def virtio_gpu_3d(root, card, vdev=""):
     """virtio-gpu always exposes a render node, even when the host gives it no
-    3D (virgl/venus); then Mesa falls back to llvmpipe. The kernel reports the
-    negotiated features in debugfs (readable by root at boot)."""
+    3D (virgl/venus); then Mesa falls back to llvmpipe. The negotiated virtio
+    feature bits are in sysfs (bit 0 VIRGL, bit 4 CONTEXT_INIT, used by venus);
+    debugfs (root, if mounted) is the fallback."""
+    if vdev:
+        bits = read(root, f"/sys/class/drm/{card}/device/{vdev}/features")
+        if re.fullmatch(r"[01]+", bits):
+            return bits[0] == "1" or (len(bits) > 4 and bits[4] == "1")
     minor = card[len("card"):]
     feats = read(root, f"/sys/kernel/debug/dri/{minor}/virtio-gpu-features")
     if not feats:  # newer kernels may name debugfs directories after the device
@@ -92,14 +97,25 @@ def virtio_gpu_3d(root, card):
     return bool(re.search(r"^\s*(virgl|venus|context init)\s*:\s*yes", feats, re.M))
 
 
+def _driver(root, path):
+    p = os.path.join(root, path.lstrip("/"), "driver")
+    return os.path.basename(os.path.realpath(p)) if os.path.exists(p) else ""
+
+
 def detect_gpus(root):
     gpus = []
     for card in listdir(root, "/sys/class/drm"):
         if not re.fullmatch(r"card\d+", card):
             continue
         dev = f"/sys/class/drm/{card}/device"
-        driver = os.path.basename(os.path.realpath(os.path.join(root, dev.lstrip("/"), "driver"))) \
-            if os.path.exists(os.path.join(root, dev.lstrip("/"), "driver")) else ""
+        driver = _driver(root, dev)
+        vdev = ""
+        if driver == "virtio-pci":
+            # PCI virtio devices bind virtio-pci; the GPU driver sits on the
+            # virtio device below it (device/virtioN -> virtio_gpu).
+            vdev = next((v for v in listdir(root, dev) if re.fullmatch(r"virtio\d+", v)), "")
+            if vdev:
+                driver = _driver(root, f"{dev}/{vdev}") or driver
         vendor_id = read(root, f"{dev}/vendor")
         vendor = PCI_VENDORS.get(vendor_id, ARM_GPU_DRIVERS.get(driver, vendor_id or "platform"))
         boot_vga = read(root, f"{dev}/boot_vga") == "1"
@@ -107,7 +123,7 @@ def detect_gpus(root):
             "card": card, "driver": driver, "vendor": vendor,
             "pci_id": f"{vendor_id}:{read(root, f'{dev}/device')}" if vendor_id else "",
             "boot_vga": boot_vga,
-            "software_only": driver in SOFTWARE_DRM or (driver == "virtio_gpu" and not virtio_gpu_3d(root, card)),
+            "software_only": driver in SOFTWARE_DRM or (driver == "virtio_gpu" and not virtio_gpu_3d(root, card, vdev)),
         })
     render_nodes = [n for n in listdir(root, "/dev/dri") if n.startswith("renderD")]
     return gpus, render_nodes
