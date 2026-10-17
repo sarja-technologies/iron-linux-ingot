@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: iron-ingot
-Source: https://github.com/crossainthero-lab/iron-linux-ingot
+Source: https://github.com/sarja-technologies/iron-linux-ingot
 
 Files: *
 Copyright: 2026 Iron Linux Developers

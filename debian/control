@@ -16,7 +16,7 @@ Build-Depends: debhelper-compat (= 13),
                libglib2.0-dev-bin,
                gjs <!nocheck>
 Standards-Version: 4.7.0
-Homepage: https://github.com/crossainthero-lab/iron-linux-ingot
+Homepage: https://github.com/sarja-technologies/iron-linux-ingot
 Rules-Requires-Root: no
 
 Package: iron-base-files
