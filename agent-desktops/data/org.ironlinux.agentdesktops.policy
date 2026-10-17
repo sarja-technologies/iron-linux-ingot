@@ -3,7 +3,7 @@
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
   <vendor>Iron Linux</vendor>
-  <vendor_url>https://github.com/crossainthero-lab/iron-linux-ingot</vendor_url>
+  <vendor_url>https://github.com/sarja-technologies/iron-linux-ingot</vendor_url>
   <icon_name>iron-logo</icon_name>
 
   <action id="org.ironlinux.agentdesktops.use">

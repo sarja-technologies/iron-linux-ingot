@@ -4,6 +4,6 @@
   "description": "First-party tiling for Iron Linux Ingot: column and grid layouts, drag-to-snap, per-workspace layouts, gaps and resizable tiles.",
   "shell-version": ["49", "50"],
   "settings-schema": "org.ironlinux.tiling",
-  "url": "https://github.com/crossainthero-lab/iron-linux-ingot",
+  "url": "https://github.com/sarja-technologies/iron-linux-ingot",
   "version": 1
 }

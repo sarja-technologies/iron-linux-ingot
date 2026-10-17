@@ -16,10 +16,10 @@ strings:
     versionedName:       Iron Linux Ingot 26.10
     shortVersionedName:  Iron Linux 26.10
     bootloaderEntryName: Iron Linux
-    productUrl:          https://github.com/crossainthero-lab/iron-linux-ingot
-    supportUrl:          https://github.com/crossainthero-lab/iron-linux-ingot/issues
-    knownIssuesUrl:      https://github.com/crossainthero-lab/iron-linux-ingot/blob/main/docs/STATUS.md
-    releaseNotesUrl:     https://github.com/crossainthero-lab/iron-linux-ingot/blob/main/README.md
+    productUrl:          https://github.com/sarja-technologies/iron-linux-ingot
+    supportUrl:          https://github.com/sarja-technologies/iron-linux-ingot/issues
+    knownIssuesUrl:      https://github.com/sarja-technologies/iron-linux-ingot/blob/main/docs/STATUS.md
+    releaseNotesUrl:     https://github.com/sarja-technologies/iron-linux-ingot/blob/main/README.md
 
 images:
     productLogo:         "logo.png"
